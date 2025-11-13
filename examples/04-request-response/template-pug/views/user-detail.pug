@@ -1,0 +1,38 @@
+doctype html
+html(lang='ko')
+  head
+    meta(charset='UTF-8')
+    meta(name='viewport' content='width=device-width, initial-scale=1.0')
+    title= title
+    link(rel='stylesheet' href='/static/style.css')
+  body
+    nav
+      .container
+        h2 Numflow Framework
+        ul
+          li: a(href='/') Home
+          li: a(href='/users') Users
+          li: a(href='/about') About
+
+    main.container
+      a.back-link(href='/users') ← Back to Users
+
+      .card.user-detail
+        h1= user.name
+
+        .detail-row
+          span.label User ID:
+          span.value= user.id
+
+        .detail-row
+          span.label Email:
+          span.value= user.email
+
+        .detail-row
+          span.label Role:
+          span.value
+            span.badge= user.role
+
+    footer
+      .container
+        p Powered by Numflow Framework

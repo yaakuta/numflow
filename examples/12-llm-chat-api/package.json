@@ -1,0 +1,30 @@
+{
+  "name": "numflow-llm-chat-api-example",
+  "version": "1.0.0",
+  "description": "LLM Chat API with Retry & Provider Fallback using Numflow",
+  "main": "app.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js"
+  },
+  "keywords": [
+    "numflow",
+    "llm",
+    "chatbot",
+    "openai",
+    "retry",
+    "fallback"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "numflow": "file:../../",
+    "dotenv": "^16.3.1",
+    "openai": "^4.20.0",
+    "@google/generative-ai": "^0.1.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}

@@ -1,0 +1,71 @@
+# 6시간 Soak Test (침수 테스트)
+# 목적: 장시간 운영 시 메모리 누수, 성능 저하 탐지
+
+config:
+  target: 'http://localhost:3000'
+  phases:
+    # Warm-up: 10분
+    - duration: 600
+      arrivalRate: 10
+      rampTo: 100
+      name: "Warm up (10 min)"
+
+    # Main load: 5시간 40분 (20,400초)
+    - duration: 20400
+      arrivalRate: 100
+      name: "Soak test (5h 40min)"
+
+    # Cool down: 10분
+    - duration: 600
+      arrivalRate: 100
+      rampTo: 0
+      name: "Cool down (10 min)"
+
+  # 메모리 누수 및 성능 저하 탐지를 위한 엄격한 임계값
+  ensure:
+    p95: 250           # P95 < 250ms
+    p99: 600           # P99 < 600ms
+    maxErrorRate: 0.05 # Error rate < 0.05%
+
+scenarios:
+  - name: "Mixed Workload"
+    weight: 100
+    flow:
+      # Health Check
+      - get:
+          url: "/health"
+          expect:
+            - statusCode: 200
+
+      - think: 1
+
+      # GET Request
+      - get:
+          url: "/"
+          expect:
+            - statusCode: 200
+
+      - think: 2
+
+      # API Call
+      - get:
+          url: "/api/users"
+          expect:
+            - statusCode: 200
+            - contentType: json
+
+      - think: 3
+
+      # POST Request (가끔씩만)
+      - loop:
+          - post:
+              url: "/api/users"
+              json:
+                name: "Soak Test User {{ $randomNumber(1, 10000) }}"
+                email: "soak{{ $randomNumber(1, 10000) }}@test.com"
+              expect:
+                - statusCode: [200, 201]
+        count: 1
+        if: "{{ $randomNumber(1, 100) > 80 }}"  # 20% 확률로만 POST
+
+      - think: 5

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title><%= title || 'Numflow Blog' %></title>
+    <link rel="stylesheet" href="/css/style.css" />
+  </head>
+  <body>
+    <header>
+      <div class="container">
+        <h1><a href="/posts">📚 Numflow Blog</a></h1>
+        <p class="subtitle">Feature-First + EJS Template Example</p>
+      </div>
+    </header>
+
+    <main class="container">
+      <div class="post-detail">
+        <article>
+          <div class="post-header">
+            <h2><%= post.title %></h2>
+            <div class="post-meta">
+              <span class="author">✍️ <%= post.author %></span>
+              <span class="date"
+                >📅 <%= post.createdAt.toLocaleDateString('ko-KR') %></span
+              >
+            </div>
+          </div>
+
+          <div class="post-content"><%= post.content %></div>
+
+          <div class="tags">
+            <% post.tags.forEach(tag => { %>
+            <span class="tag">#<%= tag %></span>
+            <% }) %>
+          </div>
+
+          <div class="post-actions">
+            <a href="/posts" class="btn">← Back to Posts</a>
+          </div>
+        </article>
+      </div>
+    </main>
+
+    <footer>
+      <div class="container">
+        <p>
+          Built with
+          <a href="https://github.com/gazerkr/numflow" target="_blank"
+            >Numflow</a
+          >
+          &amp;
+          <a href="https://ejs.co/" target="_blank">EJS</a>
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

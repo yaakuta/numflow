@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <nav>
+    <div class="container">
+      <h2>Numflow Framework</h2>
+      <ul>
+        <li><a href="/">Home</a></li>
+        <li><a href="/users">Users</a></li>
+        <li><a href="/about">About</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="container">
+    <h1><%= title %></h1>
+
+    <p class="subtitle">Total Users: <%= totalUsers %></p>
+
+    <div class="user-grid">
+      <% users.forEach(function(user) { %>
+        <div class="user-card">
+          <h3><%= user.name %></h3>
+          <p><strong>Email:</strong> <%= user.email %></p>
+          <p><strong>Role:</strong> <span class="badge"><%= user.role %></span></p>
+          <a href="/users/<%= user.id %>" class="btn">View Details</a>
+        </div>
+      <% }); %>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by Numflow Framework</p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <nav>
+    <div class="container">
+      <h2>Numflow Framework</h2>
+      <ul>
+        <li><a href="/">Home</a></li>
+        <li><a href="/users">Users</a></li>
+        <li><a href="/about">About</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="container">
+    <a href="/users" class="back-link">← Back to Users</a>
+
+    <div class="card user-detail">
+      <h1><%= user.name %></h1>
+
+      <div class="detail-row">
+        <span class="label">User ID:</span>
+        <span class="value"><%= user.id %></span>
+      </div>
+
+      <div class="detail-row">
+        <span class="label">Email:</span>
+        <span class="value"><%= user.email %></span>
+      </div>
+
+      <div class="detail-row">
+        <span class="label">Role:</span>
+        <span class="value"><span class="badge"><%= user.role %></span></span>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by Numflow Framework</p>
+    </div>
+  </footer>
+</body>
+</html>

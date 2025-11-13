@@ -1,0 +1,261 @@
+/* ===== 글로벌 스타일 ===== */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh;
+  padding: 20px;
+  color: #333;
+}
+
+/* ===== 컨테이너 ===== */
+.container {
+  max-width: 600px;
+  margin: 0 auto;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+/* ===== 헤더 ===== */
+header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 30px;
+  text-align: center;
+}
+
+header h1 {
+  font-size: 2.5rem;
+  margin-bottom: 8px;
+}
+
+.subtitle {
+  font-size: 1rem;
+  opacity: 0.9;
+  margin-bottom: 15px;
+}
+
+.badges {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.badge {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+/* ===== 메인 콘텐츠 ===== */
+main {
+  padding: 30px;
+}
+
+/* ===== 새 TODO 추가 폼 ===== */
+.add-todo {
+  margin-bottom: 30px;
+}
+
+.add-todo form {
+  display: flex;
+  gap: 10px;
+}
+
+.add-todo input {
+  flex: 1;
+  padding: 12px 16px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: all 0.3s;
+}
+
+.add-todo input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.add-todo button {
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.add-todo button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.add-todo button:active {
+  transform: translateY(0);
+}
+
+/* ===== TODO 목록 ===== */
+.todo-list {
+  min-height: 200px;
+}
+
+/* ===== Empty State ===== */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #999;
+}
+
+.empty-state p:first-child {
+  font-size: 3rem;
+  margin-bottom: 10px;
+}
+
+.empty-subtitle {
+  font-size: 1rem;
+  color: #bbb;
+}
+
+/* ===== TODO 아이템 ===== */
+.todo-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  margin-bottom: 10px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  transition: all 0.3s;
+}
+
+.todo-item:hover {
+  background: #f0f2f5;
+  border-color: #e0e0e0;
+  transform: translateX(4px);
+}
+
+.todo-item.completed {
+  opacity: 0.6;
+}
+
+.todo-item.completed .todo-text {
+  text-decoration: line-through;
+  color: #999;
+}
+
+.todo-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.todo-content input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+}
+
+.todo-text {
+  font-size: 1rem;
+  color: #333;
+}
+
+.delete-btn {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 6px;
+  transition: all 0.2s;
+  opacity: 0.5;
+}
+
+.delete-btn:hover {
+  opacity: 1;
+  background: #fee;
+  transform: scale(1.1);
+}
+
+/* ===== 통계 ===== */
+.stats {
+  margin-top: 20px;
+  padding: 16px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-around;
+  gap: 10px;
+  text-align: center;
+}
+
+.stats span {
+  font-size: 0.95rem;
+}
+
+.stats strong {
+  font-size: 1.3rem;
+  display: block;
+  margin-top: 4px;
+}
+
+/* ===== 푸터 ===== */
+footer {
+  padding: 20px 30px;
+  text-align: center;
+  background: #f8f9fa;
+  border-top: 1px solid #e0e0e0;
+  color: #666;
+}
+
+footer p {
+  margin: 5px 0;
+}
+
+footer strong {
+  color: #667eea;
+}
+
+.tech-stack {
+  font-size: 0.85rem;
+  color: #999;
+}
+
+/* ===== 반응형 ===== */
+@media (max-width: 600px) {
+  header h1 {
+    font-size: 2rem;
+  }
+
+  .add-todo form {
+    flex-direction: column;
+  }
+
+  .add-todo button {
+    width: 100%;
+  }
+
+  .stats {
+    flex-direction: column;
+  }
+}

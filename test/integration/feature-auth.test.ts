@@ -1,0 +1,197 @@
+/**
+ * Feature authentication integration test
+ * Custom authentication middleware tests (instead of Passport)
+ */
+
+import numflow from '../../src/index'
+import { Application } from '../../src/application'
+import http from 'http'
+
+jest.setTimeout(10000)
+
+describe('Feature + Custom Auth Integration', () => {
+  let app: Application
+  let server: http.Server | null = null
+  let portCounter = 8200
+
+  beforeEach(() => {
+    portCounter++
+  })
+
+  afterEach(async () => {
+    if (server && server.listening) {
+      server.closeAllConnections?.()
+      await new Promise<void>((resolve) => {
+        const timeout = setTimeout(() => resolve(), 2000)
+        server!.close(() => {
+          clearTimeout(timeout)
+          resolve()
+        })
+      })
+    }
+    server = null
+    app = null as any
+    await new Promise(resolve => setTimeout(resolve, 100))
+  })
+
+  // Custom authentication middleware
+  const authenticate = (req: any, _res: any, next: any) => {
+    const { username, password } = req.body || {}
+
+    if (username === 'testuser' && password === 'testpass') {
+      req.user = { id: 1, username: 'testuser' }
+      next()
+    } else {
+      req.user = null
+      next()
+    }
+  }
+
+  const requireAuth = (_req: any, res: any, next: any) => {
+    if (!_req.user) {
+      res.statusCode = 401
+      res.setHeader('Content-Type', 'application/json')
+      res.end(JSON.stringify({ error: 'Unauthorized' }))
+      return
+    }
+    next()
+  }
+
+  it('Feature with custom authentication should work', async () => {
+    app = numflow()
+    const port = portCounter
+
+    // Body parser is auto-enabled
+    // app.use(numflow.json())
+    // app.use(numflow.urlencoded({ extended: true }))
+
+    app.use(numflow.feature({
+      method: 'POST',
+      path: '/api/protected',
+      steps: './test/__fixtures__/feature-integration/body-steps',
+      middlewares: [authenticate, requireAuth],
+      contextInitializer: (ctx: any, req: any) => {
+        ctx.userId = req.user?.id
+        ctx.username = req.user?.username
+        ctx.requestBody = req.body
+      },
+    }))
+
+    return new Promise<void>((resolve, reject) => {
+      server = app.listen(port, () => {
+        const postData = JSON.stringify({
+          username: 'testuser',
+          password: 'testpass',
+        })
+
+        const options = {
+          hostname: 'localhost',
+          port,
+          path: '/api/protected',
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(postData),
+          },
+        }
+
+        const req = http.request(options, (res) => {
+          let data = ''
+          res.on('data', (chunk) => {
+            data += chunk
+          })
+
+          res.on('end', () => {
+            try {
+              console.log('Response status:', res.statusCode)
+              console.log('Response data:', data)
+              expect(res.statusCode).toBe(200)
+              const body = JSON.parse(data)
+              expect(body.success).toBe(true)
+              expect(body.data.bodyParsed).toBe(true)
+              expect(body.data.username).toBe('testuser')
+              resolve()
+            } catch (error) {
+              reject(error)
+            }
+          })
+        })
+
+        req.on('error', reject)
+        req.write(postData)
+        req.end()
+      })
+
+      setTimeout(() => {
+        reject(new Error('Test timeout'))
+      }, 5000).unref()
+    })
+  })
+
+  it('Feature should block unauthorized requests', async () => {
+    app = numflow()
+    const port = portCounter
+
+    // Body parser is auto-enabled
+    // app.use(numflow.json())
+    // app.use(numflow.urlencoded({ extended: true }))
+
+    app.use(numflow.feature({
+      method: 'POST',
+      path: '/api/protected',
+      steps: './test/__fixtures__/feature-integration/body-steps',
+      middlewares: [authenticate, requireAuth],
+      contextInitializer: (ctx: any, req: any) => {
+        ctx.userId = req.user?.id
+      },
+    }))
+
+    return new Promise<void>((resolve, reject) => {
+      server = app.listen(port, () => {
+        const postData = JSON.stringify({
+          username: 'wronguser',
+          password: 'wrongpass',
+        })
+
+        const options = {
+          hostname: 'localhost',
+          port,
+          path: '/api/protected',
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(postData),
+          },
+        }
+
+        const req = http.request(options, (res) => {
+          let data = ''
+          res.on('data', (chunk) => {
+            data += chunk
+          })
+
+          res.on('end', () => {
+            try {
+              console.log('Response status:', res.statusCode)
+              console.log('Response data:', data)
+              expect(res.statusCode).toBe(401)
+              const body = JSON.parse(data)
+              expect(body.error).toBe('Unauthorized')
+              resolve()
+            } catch (error) {
+              reject(error)
+            }
+          })
+        })
+
+        req.on('error', reject)
+        req.write(postData)
+        req.end()
+      })
+
+      setTimeout(() => {
+        reject(new Error('Test timeout'))
+      }, 5000).unref()
+    })
+  })
+})

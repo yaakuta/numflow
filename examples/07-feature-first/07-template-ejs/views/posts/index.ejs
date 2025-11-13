@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title><%= title || 'Numflow Blog' %></title>
+    <link rel="stylesheet" href="/css/style.css" />
+  </head>
+  <body>
+    <header>
+      <div class="container">
+        <h1><a href="/posts">📚 Numflow Blog</a></h1>
+        <p class="subtitle">Feature-First + EJS Template Example</p>
+      </div>
+    </header>
+
+    <main class="container">
+      <div class="posts-list">
+        <h2>📝 Blog Posts</h2>
+
+        <% if (posts.length === 0) { %>
+        <p class="no-posts">No posts yet.</p>
+        <% } else { %> <% posts.forEach(post => { %>
+        <article class="post-card">
+          <h3>
+            <a href="/posts/<%= post.id %>"><%= post.title %></a>
+          </h3>
+          <div class="post-meta">
+            <span class="author">✍️ <%= post.author %></span>
+            <span class="date"
+              >📅 <%= post.createdAt.toLocaleDateString('en-US') %></span
+            >
+          </div>
+          <p class="post-excerpt">
+            <%= post.content.substring(0, 150) %>...
+          </p>
+          <div class="tags">
+            <% post.tags.forEach(tag => { %>
+            <span class="tag">#<%= tag %></span>
+            <% }) %>
+          </div>
+          <a href="/posts/<%= post.id %>" class="read-more">Read More →</a>
+        </article>
+        <% }) %> <% } %>
+      </div>
+    </main>
+
+    <footer>
+      <div class="container">
+        <p>
+          Built with
+          <a href="https://github.com/gazerkr/numflow" target="_blank"
+            >Numflow</a
+          >
+          &amp;
+          <a href="https://ejs.co/" target="_blank">EJS</a>
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

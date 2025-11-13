@@ -1,0 +1,199 @@
+{
+  "timestamp": "2025-11-13T06:06:59.988Z",
+  "duration": 10,
+  "connections": 100,
+  "results": [
+    {
+      "scenario": "Hello World",
+      "server": "Numflow",
+      "requestsPerSec": 54727.28,
+      "latency": 1.18,
+      "throughput": 9578309.82,
+      "errors": 0
+    },
+    {
+      "scenario": "Hello World",
+      "server": "Express",
+      "requestsPerSec": 16029.1,
+      "latency": 5.59,
+      "throughput": 3814400,
+      "errors": 0
+    },
+    {
+      "scenario": "Hello World",
+      "server": "Fastify",
+      "requestsPerSec": 57054.55,
+      "latency": 1.05,
+      "throughput": 10040040.73,
+      "errors": 0
+    },
+    {
+      "scenario": "JSON Response (GET)",
+      "server": "Numflow",
+      "requestsPerSec": 41994.19,
+      "latency": 2.01,
+      "throughput": 9365131.64,
+      "errors": 0
+    },
+    {
+      "scenario": "JSON Response (GET)",
+      "server": "Express",
+      "requestsPerSec": 14990.4,
+      "latency": 6.26,
+      "throughput": 4317696,
+      "errors": 0
+    },
+    {
+      "scenario": "JSON Response (GET)",
+      "server": "Fastify",
+      "requestsPerSec": 54555.64,
+      "latency": 1.05,
+      "throughput": 12219857.46,
+      "errors": 0
+    },
+    {
+      "scenario": "JSON Parse (POST)",
+      "server": "Numflow",
+      "requestsPerSec": 37557.82,
+      "latency": 2.14,
+      "throughput": 8111383.28,
+      "errors": 0
+    },
+    {
+      "scenario": "JSON Parse (POST)",
+      "server": "Express",
+      "requestsPerSec": 13556,
+      "latency": 6.89,
+      "throughput": 3809559.28,
+      "errors": 0
+    },
+    {
+      "scenario": "JSON Parse (POST)",
+      "server": "Fastify",
+      "requestsPerSec": 35922.91,
+      "latency": 2.24,
+      "throughput": 7794874.19,
+      "errors": 0
+    },
+    {
+      "scenario": "Route Parameters (single)",
+      "server": "Numflow",
+      "requestsPerSec": 41546.19,
+      "latency": 2.03,
+      "throughput": 8308922.19,
+      "errors": 0
+    },
+    {
+      "scenario": "Route Parameters (single)",
+      "server": "Express",
+      "requestsPerSec": 14890.55,
+      "latency": 6.27,
+      "throughput": 3945472,
+      "errors": 0
+    },
+    {
+      "scenario": "Route Parameters (single)",
+      "server": "Fastify",
+      "requestsPerSec": 54346.19,
+      "latency": 1.1,
+      "throughput": 10922542.55,
+      "errors": 0
+    },
+    {
+      "scenario": "Route Parameters (multiple)",
+      "server": "Numflow",
+      "requestsPerSec": 41979.64,
+      "latency": 2.01,
+      "throughput": 8437946.19,
+      "errors": 0
+    },
+    {
+      "scenario": "Route Parameters (multiple)",
+      "server": "Express",
+      "requestsPerSec": 14978.55,
+      "latency": 6.26,
+      "throughput": 3983825.46,
+      "errors": 0
+    },
+    {
+      "scenario": "Route Parameters (multiple)",
+      "server": "Fastify",
+      "requestsPerSec": 53973.82,
+      "latency": 1.09,
+      "throughput": 10902434.91,
+      "errors": 0
+    },
+    {
+      "scenario": "Route + Query",
+      "server": "Numflow",
+      "requestsPerSec": 41726.55,
+      "latency": 2.02,
+      "throughput": 10098129.46,
+      "errors": 0
+    },
+    {
+      "scenario": "Route + Query",
+      "server": "Express",
+      "requestsPerSec": 14737.82,
+      "latency": 6.29,
+      "throughput": 4524776.73,
+      "errors": 0
+    },
+    {
+      "scenario": "Route + Query",
+      "server": "Fastify",
+      "requestsPerSec": 53892.37,
+      "latency": 1.07,
+      "throughput": 13094912,
+      "errors": 0
+    },
+    {
+      "scenario": "Middleware Chain (4 middlewares)",
+      "server": "Numflow",
+      "requestsPerSec": 42168.73,
+      "latency": 1.99,
+      "throughput": 11470661.82,
+      "errors": 0
+    },
+    {
+      "scenario": "Middleware Chain (4 middlewares)",
+      "server": "Express",
+      "requestsPerSec": 14188.73,
+      "latency": 6.54,
+      "throughput": 4780590.55,
+      "errors": 0
+    },
+    {
+      "scenario": "Middleware Chain (4 middlewares)",
+      "server": "Fastify",
+      "requestsPerSec": 54471.28,
+      "latency": 1.05,
+      "throughput": 14871831.28,
+      "errors": 0
+    },
+    {
+      "scenario": "Feature-First (10 Steps)",
+      "server": "Numflow",
+      "requestsPerSec": 35180.37,
+      "latency": 2.23,
+      "throughput": 15974027.64,
+      "errors": 0
+    },
+    {
+      "scenario": "Feature-First (50 Steps)",
+      "server": "Numflow",
+      "requestsPerSec": 29328.73,
+      "latency": 3.02,
+      "throughput": 41497693.1,
+      "errors": 0
+    },
+    {
+      "scenario": "Regular Route (Comparison)",
+      "server": "Numflow",
+      "requestsPerSec": 36600.73,
+      "latency": 2.16,
+      "throughput": 16615237.82,
+      "errors": 0
+    }
+  ]
+}

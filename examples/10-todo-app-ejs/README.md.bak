@@ -1,0 +1,334 @@
+# TODO App with Numflow Framework
+
+Full-stack TODO application demonstrating **Bulk Registration**, **Feature-First Auto-Orchestration**, and **EJS Template Engine**.
+
+## ✨ Features
+
+- ✅ **Bulk Registration** - 한 줄로 모든 Feature 등록!
+- ✅ **Convention over Configuration** - 폴더 구조만으로 API 자동 생성
+- ✅ **Feature-First Pattern** - Step 기반 비즈니스 로직 자동 실행
+- ✅ **EJS Template Engine** - res.render() 사용한 서버 사이드 렌더링
+- ✅ **REST API** - GET, POST, PUT, DELETE 완벽 지원
+- ✅ **Beautiful UI** - 반응형 디자인
+
+## 📁 프로젝트 구조
+
+```
+10-todo-app-ejs/
+├── app.js                          # 메인 애플리케이션 (Bulk Registration!)
+├── package.json
+├── features/                       # Feature 폴더 (Convention!)
+│   └── todos/
+│       ├── get/                    # GET /todos - 목록 조회
+│       │   └── index.js
+│       ├── post/                   # POST /todos - TODO 추가
+│       │   ├── index.js
+│       │   └── steps/
+│       │       ├── 100-validate.js
+│       │       └── 200-create-todo.js
+│       └── [id]/
+│           ├── put/                # PUT /todos/:id - 토글
+│           │   ├── index.js
+│           │   └── steps/
+│           │       └── 100-toggle-todo.js
+│           └── delete/             # DELETE /todos/:id - 삭제
+│               ├── index.js
+│               └── steps/
+│                   └── 100-delete-todo.js
+├── views/
+│   └── index.ejs                   # EJS 템플릿
+└── public/
+    └── style.css                   # 스타일시트
+```
+
+## 🚀 시작하기
+
+### 1. 의존성 설치
+
+```bash
+cd examples/10-todo-app-ejs
+npm install
+```
+
+### 2. 서버 실행
+
+```bash
+npm start
+```
+
+또는 개발 모드 (자동 재시작):
+
+```bash
+npm run dev
+```
+
+### 3. 브라우저에서 확인
+
+```
+http://localhost:3000/todos
+```
+
+## 🎯 핵심 코드 설명
+
+### 1. app.js - Bulk Registration!
+
+```javascript
+const numbers = require('numflow')
+const app = numbers()
+
+// ===== EJS 설정 =====
+app.set('view engine', 'ejs')
+app.set('views', path.join(__dirname, 'views'))
+
+// ===== 정적 파일 제공 =====
+app.use(serveStatic(path.join(__dirname, 'public')))
+
+// ===== 핵심! Bulk Registration =====
+// 한 줄로 모든 Feature 자동 등록!
+app.registerFeatures('./features')
+
+app.listen(3000)
+```
+
+**끝!** 이게 전부입니다. 나머지는 모두 자동으로 처리됩니다!
+
+### 2. Convention over Configuration
+
+폴더 구조만 만들면 API가 자동 생성됩니다:
+
+| 폴더 경로 | API 엔드포인트 | HTTP 메서드 |
+|----------|----------------|-------------|
+| `features/todos/get/` | `/todos` | GET |
+| `features/todos/post/` | `/todos` | POST |
+| `features/todos/[id]/put/` | `/todos/:id` | PUT |
+| `features/todos/[id]/delete/` | `/todos/:id` | DELETE |
+
+**규칙:**
+- 폴더명 (`get`, `post`, `put`, `delete`) → HTTP 메서드
+- 폴더 구조 → API Path
+- `[id]` → `:id` (Dynamic Route)
+
+### 3. Feature 파일 - 거의 빈 파일!
+
+```javascript
+// features/todos/post/index.js
+const numbers = require('numflow')
+
+module.exports = numbers.feature({
+  // 모든 것이 자동 추론됨!
+  // method: 'POST' (폴더명에서)
+  // path: '/todos' (폴더 구조에서)
+  // steps: './steps' (디렉토리 자동 인식)
+
+  // 요청 데이터만 추출
+  contextInitializer: (req, res) => ({
+    todoText: req.body.text,
+  }),
+})
+```
+
+### 4. Step 함수 - 비즈니스 로직
+
+```javascript
+// features/todos/post/steps/100-validate.js
+async function validate(context) {
+  const { todoText } = context
+
+  if (!todoText || todoText.trim() === '') {
+    throw new Error('TODO 내용을 입력해주세요')
+  }
+
+  context.results.validation = {
+    isValid: true,
+    validatedText: todoText.trim(),
+  }
+
+  return true
+}
+
+module.exports = validate
+```
+
+```javascript
+// features/todos/post/steps/200-create-todo.js
+async function createTodo(context) {
+  const { validatedText } = context.results.validation
+
+  const newTodo = {
+    id: global.nextId++,
+    text: validatedText,
+    completed: false,
+  }
+
+  global.todos.push(newTodo)
+  context.results.todo = newTodo
+
+  return true
+}
+
+module.exports = createTodo
+```
+
+**자동 실행!** Step은 파일명 순서대로 자동 실행됩니다:
+1. `100-validate.js` → 검증
+2. `200-create-todo.js` → 생성
+
+### 5. EJS 렌더링 - res.render()
+
+```javascript
+// app.js - 일반 라우트 사용
+app.get('/todos', (req, res) => {
+  const todos = global.todos || []
+  res.render('index', { todos })
+})
+```
+
+> 💡 **참고**: GET 요청은 단순하므로 일반 라우트를 사용합니다. Feature는 복잡한 비즈니스 로직이 필요한 POST/PUT/DELETE에서 사용합니다.
+
+## 📡 API 엔드포인트
+
+| Method | Endpoint | Description | Request Body |
+|--------|----------|-------------|--------------|
+| GET | `/todos` | 모든 TODO 목록 조회 (HTML) | - |
+| POST | `/todos` | 새 TODO 추가 | `{ "text": "할 일" }` |
+| PUT | `/todos/:id` | TODO 완료 상태 토글 | - |
+| DELETE | `/todos/:id` | TODO 삭제 | - |
+
+### API 테스트 (curl)
+
+```bash
+# TODO 목록 조회
+curl http://localhost:3000/todos
+
+# TODO 추가
+curl -X POST http://localhost:3000/todos \
+  -H "Content-Type: application/json" \
+  -d '{"text":"Numflow 프레임워크 배우기"}'
+
+# TODO 완료 토글
+curl -X PUT http://localhost:3000/todos/1
+
+# TODO 삭제
+curl -X DELETE http://localhost:3000/todos/1
+```
+
+## 🎨 화면 구성
+
+1. **헤더** - 앱 제목 및 기술 스택 배지
+2. **입력 폼** - 새 TODO 추가
+3. **TODO 목록** - 체크박스, 삭제 버튼
+4. **통계** - 전체/완료/남음 개수
+5. **푸터** - 프레임워크 정보
+
+## 💡 핵심 개념
+
+### Convention over Configuration
+
+설정 파일 없이 폴더 구조만으로 API를 정의합니다.
+
+**Before (Express):**
+```javascript
+// 100줄 이상의 라우트 정의 코드...
+app.get('/todos', getTodos)
+app.post('/todos', createTodo)
+app.put('/todos/:id', updateTodo)
+app.delete('/todos/:id', deleteTodo)
+```
+
+**After (Numflow):**
+```javascript
+// 단 한 줄!
+app.registerFeatures('./features')
+```
+
+### Feature-First Auto-Orchestration
+
+비즈니스 로직을 Step으로 분리하면 자동으로 순차 실행됩니다.
+
+**장점:**
+- ✅ 각 Step이 독립적으로 테스트 가능
+- ✅ 중간에 Step 추가/삭제 쉬움
+- ✅ 코드 가독성 향상
+- ✅ 에러 처리 자동화
+
+## 🔧 확장 가능성
+
+### 데이터베이스 연결
+
+```javascript
+// features/todos/post/steps/200-create-todo.js
+async function createTodo(context) {
+  const { validatedText } = context.results.validation
+
+  // 데이터베이스에 저장
+  const newTodo = await db.todos.create({
+    text: validatedText,
+    completed: false,
+  })
+
+  context.results.todo = newTodo
+  return true
+}
+```
+
+### 비동기 작업 추가
+
+```javascript
+// features/todos/post/index.js
+module.exports = numbers.feature({
+  steps: './steps',
+  asyncTasks: './async-tasks',  // 자동 인식!
+})
+
+// features/todos/post/async-tasks/send-notification.js
+async function sendNotification(context) {
+  const { todo } = context.results
+  await notificationService.send({
+    message: `새 TODO 추가: ${todo.text}`,
+  })
+}
+module.exports = sendNotification
+```
+
+### 인증/권한 추가
+
+```javascript
+// features/todos/post/index.js
+module.exports = numbers.feature({
+  middlewares: [authenticate, authorize],  // Feature-level 미들웨어
+  contextInitializer: (req, res) => ({
+    userId: req.user.id,
+    todoText: req.body.text,
+  }),
+})
+```
+
+## 📚 학습 포인트
+
+이 예제에서 배울 수 있는 것:
+
+1. ✅ **Bulk Registration** - 대규모 프로젝트에서 Feature 관리 방법
+2. ✅ **Convention over Configuration** - 설정 없이 폴더 구조로 개발
+3. ✅ **Feature-First Pattern** - Step 기반 비즈니스 로직 구조화
+4. ✅ **EJS Template** - res.render() 사용법
+5. ✅ **REST API** - CRUD 전체 구현
+6. ✅ **Error Handling** - Feature 에러 자동 캐치
+
+## 🎯 다음 단계
+
+- [ ] 데이터베이스 연동 (MongoDB, PostgreSQL)
+- [ ] 사용자 인증 추가
+- [ ] TODO 카테고리 기능
+- [ ] TODO 우선순위
+- [ ] 검색 기능
+- [ ] 페이지네이션
+
+## 📖 관련 문서
+
+- [Feature-First API Documentation](../../docs/api/feature.md)
+- [Bulk Registration Guide](../../docs/getting-started/feature-first.md)
+- [Numflow Framework Documentation](../../docs/README.md)
+
+---
+
+**Built with ❤️ using Numflow Framework**

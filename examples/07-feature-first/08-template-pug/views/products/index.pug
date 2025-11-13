@@ -1,0 +1,23 @@
+extends ../layout
+
+block content
+  .products-list
+    h2 📦 Product Catalog
+
+    if products.length === 0
+      p.no-products 제품이 없습니다.
+    else
+      each product in products
+        article.product-card
+          h3
+            a(href=`/products/${product.id}`)= product.name
+          .product-meta
+            span.category= product.category
+            span.price= product.price === 0 ? 'Free' : `$${product.price}`
+          p.product-desc= product.description
+          .product-status
+            if product.inStock
+              span.badge.in-stock ✓ In Stock
+            else
+              span.badge.out-of-stock ✗ Out of Stock
+          a.view-details(href=`/products/${product.id}`) View Details →

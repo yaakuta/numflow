@@ -1,0 +1,85 @@
+# Feature-First 6시간 Soak Test
+# 목적: Feature-First 아키텍처의 장기 안정성 검증
+#
+# 테스트 항목:
+# - Steps 실행의 메모리 누수
+# - Context 메모리 관리
+# - Async Tasks 완료율
+# - 트랜잭션 성능 저하
+
+config:
+  target: 'http://localhost:3000'
+  phases:
+    # Warm-up: 10분
+    - duration: 600
+      arrivalRate: 10
+      rampTo: 80
+      name: "Warm up (10 min)"
+
+    # Main load: 5시간 40분
+    - duration: 20400
+      arrivalRate: 80
+      name: "Feature-First Soak (5h 40min)"
+
+    # Cool down: 10분
+    - duration: 600
+      arrivalRate: 80
+      rampTo: 0
+      name: "Cool down (10 min)"
+
+  # Feature-First 특화 임계값
+  ensure:
+    p95: 300           # Steps가 많아서 약간 여유
+    p99: 700
+    maxErrorRate: 0.05
+
+scenarios:
+  # 시나리오 1: 복잡한 주문 생성 (6 Steps) - 60%
+  - name: "Create Order (6 Steps)"
+    weight: 60
+    flow:
+      - post:
+          url: "/api/orders"
+          json:
+            userId: "{{ $randomNumber(1, 1000) }}"
+            productId: "{{ $randomNumber(1, 3) }}"
+            quantity: "{{ $randomNumber(1, 10) }}"
+          expect:
+            - statusCode: 201
+            - contentType: json
+            - hasProperty: success
+            - hasProperty: order
+
+      - think: 2
+
+  # 시나리오 2: 사용자 생성 (Transaction + Async Task) - 30%
+  - name: "Create User (Transaction)"
+    weight: 30
+    flow:
+      - post:
+          url: "/api/users"
+          json:
+            name: "User {{ $randomString() }}"
+            email: "{{ $randomString() }}@test.com"
+          expect:
+            - statusCode: 201
+            - contentType: json
+            - hasProperty: success
+            - hasProperty: user
+            - hasProperty: transaction
+
+      - think: 3
+
+  # 시나리오 3: Health Check (Feature-First 메트릭 확인) - 10%
+  - name: "Health Check (Metrics)"
+    weight: 10
+    flow:
+      - get:
+          url: "/api/health"
+          expect:
+            - statusCode: 200
+            - contentType: json
+            - hasProperty: status
+            - hasProperty: featureFirst
+
+      - think: 1

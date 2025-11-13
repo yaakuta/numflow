@@ -1,0 +1,294 @@
+/**
+ * Feature + Passport 통합 테스트
+ * Phase 7.2: Feature-level 미들웨어와 passport 인증 통합
+ */
+
+import numbers from '../../src/index'
+import { Application } from '../../src/application'
+import http from 'http'
+import passport from 'passport'
+import { Strategy as LocalStrategy } from 'passport-local'
+
+// Jest 타임아웃 증가 (서버 cleanup을 위해)
+jest.setTimeout(10000)
+
+describe('Feature + Passport 통합', () => {
+  let app: Application
+  let server: http.Server | null = null
+  let strategyConfigured = false
+  let portCounter = 7000
+
+  beforeEach(() => {
+    // 각 테스트마다 고유한 포트 사용
+    portCounter++
+  })
+
+  afterEach(async () => {
+    if (server && server.listening) {
+      // 모든 활성 연결 종료
+      server.closeAllConnections?.()
+
+      // 서버 종료를 Promise로 래핑
+      await new Promise<void>((resolve) => {
+        const timeout = setTimeout(() => {
+          resolve()
+        }, 2000)
+
+        server!.close(() => {
+          clearTimeout(timeout)
+          resolve()
+        })
+      })
+    }
+
+    server = null
+    app = null as any
+
+    // 다음 테스트 전 짧은 대기
+    await new Promise(resolve => setTimeout(resolve, 100))
+  })
+
+  beforeEach(() => {
+    // Passport 전략을 한 번만 설정 (중복 등록 방지)
+    if (!strategyConfigured) {
+      passport.use(
+        new LocalStrategy((username, password, done) => {
+          if (username === 'testuser' && password === 'testpass') {
+            return done(null, { id: 1, username: 'testuser' })
+          }
+          return done(null, false, { message: 'Invalid credentials' })
+        })
+      )
+      strategyConfigured = true
+    }
+  })
+
+  it('Feature 미들웨어에서 passport.authenticate()를 사용할 수 있어야 함', async () => {
+    app = numbers()
+    const port = portCounter
+
+    // Body parser 필요
+    app.use(numbers.json())
+    app.use(numbers.urlencoded({ extended: true }))
+
+    // Feature 등록 (passport 미들웨어 포함)
+    app.registerFeature({
+      method: 'POST',
+      path: '/api/protected',
+      steps: './test/__fixtures__/feature-integration/passport-steps',
+      middlewares: [
+        passport.authenticate('local', { session: false }),
+        (req: any, res: any, next: any) => {
+          // 인증 성공 여부 확인
+          if (!req.user) {
+            res.statusCode = 401
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ error: 'Unauthorized' }))
+            return
+          }
+          next()
+        },
+      ],
+      contextInitializer: (req: any) => ({
+        userId: req.user?.id,
+        username: req.user?.username,
+      }),
+    })
+
+    return new Promise<void>((resolve, reject) => {
+      server = app.listen(port, () => {
+        const postData = JSON.stringify({
+          username: 'testuser',
+          password: 'testpass',
+        })
+
+        const options = {
+          hostname: 'localhost',
+          port,
+          path: '/api/protected',
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(postData),
+          },
+        }
+
+        const req = http.request(options, (res) => {
+          expect(res.statusCode).toBe(200)
+
+          let data = ''
+          res.on('data', (chunk) => {
+            data += chunk
+          })
+
+          res.on('end', () => {
+            try {
+              const body = JSON.parse(data)
+              expect(body.success).toBe(true)
+              expect(body.data.userId).toBe(1)
+              expect(body.data.username).toBe('testuser')
+              expect(body.data.validated).toBe(true)
+              expect(body.data.processed).toBe(true)
+              resolve()
+            } catch (error) {
+              reject(error)
+            }
+          })
+        })
+
+        req.on('error', reject)
+        req.write(postData)
+        req.end()
+      })
+    })
+  })
+
+  it('인증 실패 시 Feature 실행이 차단되어야 함', async () => {
+    app = numbers()
+    const port = portCounter
+
+    app.use(numbers.json())
+    app.use(numbers.urlencoded({ extended: true }))
+
+    app.registerFeature({
+      method: 'POST',
+      path: '/api/protected',
+      steps: './test/__fixtures__/feature-integration/passport-steps',
+      middlewares: [
+        passport.authenticate('local', { session: false }),
+        (req: any, res: any, next: any) => {
+          if (!req.user) {
+            res.statusCode = 401
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ error: 'Unauthorized' }))
+            return
+          }
+          next()
+        },
+      ],
+      contextInitializer: (req: any) => ({
+        userId: req.user?.id,
+      }),
+    })
+
+    return new Promise<void>((resolve, reject) => {
+      server = app.listen(port, () => {
+      const postData = JSON.stringify({
+        username: 'wronguser',
+        password: 'wrongpass',
+      })
+
+      const options = {
+        hostname: 'localhost',
+        port,
+        path: '/api/protected',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(postData),
+        },
+      }
+
+      const req = http.request(options, (res) => {
+        expect(res.statusCode).toBe(401)
+
+        let data = ''
+        res.on('data', (chunk) => {
+          data += chunk
+        })
+
+        res.on('end', () => {
+          try {
+            const body = JSON.parse(data)
+            expect(body.error).toBe('Unauthorized')
+            resolve()
+          } catch (error) {
+            reject(error)
+          }
+        })
+      })
+
+      req.on('error', reject)
+      req.write(postData)
+      req.end()
+      })
+    })
+  })
+
+  it('contextInitializer에서 req.user에 접근할 수 있어야 함', async () => {
+    app = numbers()
+    const port = portCounter
+
+    app.use(numbers.json())
+    app.use(numbers.urlencoded({ extended: true }))
+
+    app.registerFeature({
+      method: 'POST',
+      path: '/api/user-info',
+      steps: './test/__fixtures__/feature-integration/passport-steps',
+      middlewares: [
+        passport.authenticate('local', { session: false }),
+        (req: any, res: any, next: any) => {
+          if (!req.user) {
+            res.statusCode = 401
+            res.end()
+            return
+          }
+          next()
+        },
+      ],
+      contextInitializer: (req: any) => ({
+        userId: req.user.id,
+        username: req.user.username,
+        email: req.user.email || 'test@example.com',
+      }),
+    })
+
+    return new Promise<void>((resolve, reject) => {
+      server = app.listen(port, () => {
+        const postData = JSON.stringify({
+          username: 'testuser',
+          password: 'testpass',
+        })
+
+        const options = {
+          hostname: 'localhost',
+          port,
+          path: '/api/user-info',
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(postData),
+          },
+        }
+
+        const req = http.request(options, (res) => {
+          expect(res.statusCode).toBe(200)
+
+          let data = ''
+          res.on('data', (chunk) => {
+            data += chunk
+          })
+
+          res.on('end', () => {
+            try {
+              const body = JSON.parse(data)
+              expect(body.success).toBe(true)
+              expect(body.data.userChecked).toBe(true)
+              expect(body.data.userId).toBe(1)
+              expect(body.data.username).toBe('testuser')
+              expect(body.data.email).toBe('test@example.com')
+              resolve()
+            } catch (error) {
+              reject(error)
+            }
+          })
+        })
+
+        req.on('error', reject)
+        req.write(postData)
+        req.end()
+      })
+    })
+  })
+})

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <nav>
+    <div class="container">
+      <h2>Numflow Framework</h2>
+      <ul>
+        <li><a href="/">Home</a></li>
+        <li><a href="/users">Users</a></li>
+        <li><a href="/about">About</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="container">
+    <h1><%= title %></h1>
+
+    <div class="card">
+      <h2><%= framework %></h2>
+      <p class="subtitle">Version: <%= version %></p>
+      <p><%= description %></p>
+    </div>
+
+    <div class="card">
+      <h2>Why Numflow?</h2>
+      <ul class="features-list">
+        <li>✓ Express-compatible API</li>
+        <li>✓ High performance</li>
+        <li>✓ Modern architecture</li>
+        <li>✓ Easy migration from Express</li>
+        <li>✓ Built with TypeScript</li>
+        <li>✓ Lightweight and fast</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>Template Engines</h2>
+      <p>Numflow supports multiple template engines out of the box:</p>
+      <ul class="features-list">
+        <li>✓ EJS - Fast and simple</li>
+        <li>✓ Pug - Clean and elegant</li>
+        <li>✓ Handlebars - Logic-less templates</li>
+      </ul>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by Numflow Framework</p>
+    </div>
+  </footer>
+</body>
+</html>

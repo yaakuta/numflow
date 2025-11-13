@@ -1,0 +1,213 @@
+/**
+ * Feature + express-session 통합 테스트
+ * Phase 7.2: Feature에서 세션 데이터 사용
+ */
+
+import numbers from '../../src/index'
+import { Application } from '../../src/application'
+import http from 'http'
+import session from 'express-session'
+
+// Jest 타임아웃 증가 (서버 cleanup을 위해)
+jest.setTimeout(10000)
+
+describe('Feature + express-session 통합', () => {
+  let app: Application
+  let server: http.Server | null = null
+  let portCounter = 7100
+
+  beforeEach(() => {
+    // 각 테스트마다 고유한 포트 사용
+    portCounter++
+  })
+
+  afterEach(async () => {
+    if (server && server.listening) {
+      // 모든 활성 연결 종료
+      server.closeAllConnections?.()
+
+      // 서버 종료를 Promise로 래핑
+      await new Promise<void>((resolve) => {
+        const timeout = setTimeout(() => {
+          resolve()
+        }, 2000)
+
+        server!.close(() => {
+          clearTimeout(timeout)
+          resolve()
+        })
+      })
+    }
+
+    server = null
+    app = null as any
+
+    // 다음 테스트 전 짧은 대기
+    await new Promise(resolve => setTimeout(resolve, 100))
+  })
+
+  it('Feature contextInitializer에서 req.session에 접근할 수 있어야 함', async () => {
+    app = numbers()
+    const port = portCounter
+
+    // 세션 미들웨어 설정
+    app.use(
+      session({
+        secret: 'test-secret',
+        resave: false,
+        saveUninitialized: true,
+        cookie: { secure: false },
+      })
+    )
+
+    app.use(numbers.json())
+
+    // 세션 설정 라우트
+    app.post('/api/login', (req: any, res: any) => {
+      req.session.userId = 123
+      req.session.username = 'testuser'
+      res.json({ success: true })
+    })
+
+    app.registerFeature({
+      method: 'POST',
+      path: '/api/profile',
+      steps: './test/__fixtures__/feature-integration/session-steps',
+      contextInitializer: (req: any) => ({
+        userId: req.session?.userId,
+        username: req.session?.username,
+      }),
+    })
+
+    return new Promise<void>((resolve, reject) => {
+      server = app.listen(port, () => {
+        // 먼저 로그인
+        const loginData = JSON.stringify({ username: 'testuser', password: 'testpass' })
+        const loginOptions = {
+          hostname: 'localhost',
+          port,
+          path: '/api/login',
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(loginData),
+          },
+        }
+
+        const loginReq = http.request(loginOptions, (loginRes) => {
+          expect(loginRes.statusCode).toBe(200)
+
+          // 쿠키 추출
+          const cookies = loginRes.headers['set-cookie']
+          expect(cookies).toBeDefined()
+
+          let responseData = ''
+          loginRes.on('data', (chunk) => {
+            responseData += chunk
+          })
+
+          loginRes.on('end', () => {
+            // 세션 쿠키로 프로필 요청
+            const profileOptions = {
+              hostname: 'localhost',
+              port,
+              path: '/api/profile',
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Cookie: cookies ? cookies[0] : '',
+              },
+            }
+
+            const profileReq = http.request(profileOptions, (profileRes) => {
+              let profileData = ''
+              profileRes.on('data', (chunk) => {
+                profileData += chunk
+              })
+
+              profileRes.on('end', () => {
+                try {
+                  const body = JSON.parse(profileData)
+                  expect(body.success).toBe(true)
+                  expect(body.data.sessionUserId).toBe(123)
+                  resolve()
+                } catch (error) {
+                  reject(error)
+                }
+              })
+            })
+
+            profileReq.on('error', reject)
+            profileReq.end()
+          })
+        })
+
+        loginReq.on('error', reject)
+        loginReq.write(loginData)
+        loginReq.end()
+      })
+    })
+  })
+
+  it('Steps에서 세션 데이터를 수정할 수 있어야 함', async () => {
+    app = numbers()
+    const port = portCounter
+
+    app.use(
+      session({
+        secret: 'test-secret',
+        resave: false,
+        saveUninitialized: true,
+        cookie: { secure: false },
+      })
+    )
+
+    app.use(numbers.json())
+
+    app.registerFeature({
+      method: 'POST',
+      path: '/api/update-session',
+      steps: './test/__fixtures__/feature-integration/session-steps',
+      contextInitializer: (req: any) => ({
+        session: req.session,
+      }),
+    })
+
+    return new Promise<void>((resolve, reject) => {
+      server = app.listen(port, () => {
+        const options = {
+          hostname: 'localhost',
+          port,
+          path: '/api/update-session',
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+
+        const req = http.request(options, (res) => {
+          expect(res.statusCode).toBe(200)
+
+          let data = ''
+          res.on('data', (chunk) => {
+            data += chunk
+          })
+
+          res.on('end', () => {
+            try {
+              const body = JSON.parse(data)
+              expect(body.success).toBe(true)
+              expect(body.data.updated).toBe(true)
+              resolve()
+            } catch (error) {
+              reject(error)
+            }
+          })
+        })
+
+        req.on('error', reject)
+        req.end()
+      })
+    })
+  })
+})

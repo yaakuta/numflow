@@ -1,0 +1,26 @@
+{
+  "name": "todo-app-ejs",
+  "version": "1.0.0",
+  "description": "Full-stack TODO app using Numflow Framework with Bulk Registration and EJS",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js"
+  },
+  "keywords": [
+    "numbers",
+    "todo",
+    "ejs",
+    "feature-first",
+    "bulk-registration"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "numbers": "file:../..",
+    "ejs": "^3.1.9"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}

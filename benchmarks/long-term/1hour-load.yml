@@ -1,0 +1,71 @@
+# 1시간 부하 테스트 (Load Test)
+# 목적: 정상 운영 환경 시뮬레이션
+
+config:
+  target: 'http://localhost:3000'
+  phases:
+    # Warm-up: 5분간 점진적 증가
+    - duration: 300
+      arrivalRate: 10
+      rampTo: 50
+      name: "Warm up (5 min)"
+
+    # Main load: 50분간 일정 부하 유지
+    - duration: 3000
+      arrivalRate: 50
+      name: "Sustained load (50 min)"
+
+    # Cool down: 5분간 점진적 감소
+    - duration: 300
+      arrivalRate: 50
+      rampTo: 0
+      name: "Cool down (5 min)"
+
+  # 성능 임계값 설정
+  ensure:
+    p95: 200           # P95 < 200ms
+    p99: 500           # P99 < 500ms
+    maxErrorRate: 0.1  # Error rate < 0.1%
+
+scenarios:
+  # 시나리오 1: 일반 API 호출 (70%)
+  - name: "API Workload"
+    weight: 70
+    flow:
+      - get:
+          url: "/"
+          expect:
+            - statusCode: 200
+
+      - think: 1  # 1초 대기
+
+      - get:
+          url: "/api/users"
+          expect:
+            - statusCode: 200
+            - contentType: json
+
+      - think: 2
+
+  # 시나리오 2: POST 요청 (20%)
+  - name: "Create User"
+    weight: 20
+    flow:
+      - post:
+          url: "/api/users"
+          json:
+            name: "{{ $randomString() }}"
+            email: "{{ $randomString() }}@example.com"
+          expect:
+            - statusCode: [200, 201]
+
+      - think: 1
+
+  # 시나리오 3: Health Check (10%)
+  - name: "Health Check"
+    weight: 10
+    flow:
+      - get:
+          url: "/health"
+          expect:
+            - statusCode: 200

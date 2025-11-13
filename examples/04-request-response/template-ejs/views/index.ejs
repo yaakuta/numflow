@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <nav>
+    <div class="container">
+      <h2>Numflow Framework</h2>
+      <ul>
+        <li><a href="/">Home</a></li>
+        <li><a href="/users">Users</a></li>
+        <li><a href="/about">About</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="container">
+    <h1><%= message %></h1>
+
+    <section class="card">
+      <h2>Features</h2>
+      <ul class="features-list">
+        <% features.forEach(function(feature) { %>
+          <li>✓ <%= feature %></li>
+        <% }); %>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>Getting Started</h2>
+      <p>This example demonstrates how to use EJS templates with Numflow framework.</p>
+      <p>Check out the <a href="/users">user list</a> to see more examples.</p>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Powered by Numflow Framework</p>
+    </div>
+  </footer>
+</body>
+</html>

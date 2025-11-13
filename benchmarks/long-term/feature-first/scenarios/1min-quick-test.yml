@@ -1,0 +1,74 @@
+# Feature-First 1분 Quick Test
+# 목적: 장기 테스트 인프라 검증
+
+config:
+  target: 'http://localhost:3000'
+  phases:
+    # Warm-up: 10초
+    - duration: 10
+      arrivalRate: 5
+      rampTo: 20
+      name: "Warm up (10 sec)"
+
+    # Main load: 40초
+    - duration: 40
+      arrivalRate: 20
+      name: "Feature-First Load (40 sec)"
+
+    # Cool down: 10초
+    - duration: 10
+      arrivalRate: 20
+      rampTo: 0
+      name: "Cool down (10 sec)"
+
+  ensure:
+    p95: 300
+    p99: 700
+    maxErrorRate: 0.05
+
+scenarios:
+  # 시나리오 1: 주문 생성 - 60%
+  - name: "Create Order"
+    weight: 60
+    flow:
+      - post:
+          url: "/api/orders"
+          json:
+            userId: "{{ $randomNumber(1, 100) }}"
+            productId: "{{ $randomNumber(1, 3) }}"
+            quantity: "{{ $randomNumber(1, 10) }}"
+          expect:
+            - statusCode: 201
+            - contentType: json
+            - hasProperty: success
+
+      - think: 1
+
+  # 시나리오 2: 사용자 생성 - 30%
+  - name: "Create User"
+    weight: 30
+    flow:
+      - post:
+          url: "/api/users"
+          json:
+            name: "User {{ $randomString() }}"
+            email: "{{ $randomString() }}@test.com"
+          expect:
+            - statusCode: 201
+            - contentType: json
+            - hasProperty: success
+
+      - think: 1
+
+  # 시나리오 3: Health Check - 10%
+  - name: "Health Check"
+    weight: 10
+    flow:
+      - get:
+          url: "/api/health"
+          expect:
+            - statusCode: 200
+            - contentType: json
+            - hasProperty: status
+
+      - think: 1

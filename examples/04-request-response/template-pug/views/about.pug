@@ -1,0 +1,45 @@
+doctype html
+html(lang='ko')
+  head
+    meta(charset='UTF-8')
+    meta(name='viewport' content='width=device-width, initial-scale=1.0')
+    title= title
+    link(rel='stylesheet' href='/static/style.css')
+  body
+    nav
+      .container
+        h2 Numflow Framework
+        ul
+          li: a(href='/') Home
+          li: a(href='/users') Users
+          li: a(href='/about') About
+
+    main.container
+      h1= title
+
+      .card
+        h2= framework
+        p.subtitle Version: #{version}
+        p= description
+
+      .card
+        h2 Why Numflow?
+        ul.features-list
+          li ✓ Express-compatible API
+          li ✓ High performance
+          li ✓ Modern architecture
+          li ✓ Easy migration from Express
+          li ✓ Built with TypeScript
+          li ✓ Lightweight and fast
+
+      .card
+        h2 Template Engines
+        p Numflow supports multiple template engines out of the box:
+        ul.features-list
+          li ✓ EJS - Fast and simple
+          li ✓ Pug - Clean and elegant
+          li ✓ Handlebars - Logic-less templates
+
+    footer
+      .container
+        p Powered by Numflow Framework

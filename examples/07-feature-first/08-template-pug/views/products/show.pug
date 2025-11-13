@@ -1,0 +1,22 @@
+extends ../layout
+
+block content
+  .product-detail
+    article
+      .product-header
+        h2= product.name
+        .product-meta
+          span.category= product.category
+          span.price= product.price === 0 ? 'Free' : `$${product.price}`
+
+      .product-content
+        p= product.description
+
+      .product-status
+        if product.inStock
+          span.badge.in-stock.large ✓ Available
+        else
+          span.badge.out-of-stock.large ✗ Currently Unavailable
+
+      .product-actions
+        a.btn(href='/products') ← Back to Products

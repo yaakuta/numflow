@@ -1,0 +1,4 @@
+# 모든 JSON 결과 파일 무시 (latest.json, baseline.json 제외)
+*.json
+!latest.json
+!baseline.json
