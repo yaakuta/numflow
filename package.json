@@ -25,9 +25,7 @@
     "clean": "rm -rf dist",
     "lint": "eslint src test --ext .ts",
     "lint:fix": "eslint src test --ext .ts --fix",
-    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
-    "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\"",
-    "prepublishOnly": "npm run lint && npm run format:check && npm run clean && npm run build && npm test"
+    "prepublishOnly": "npm run lint && npm run clean && npm run build && npm test"
   },
   "keywords": [
     "numflow",
@@ -89,8 +87,6 @@
     "cors": "^2.8.5",
     "ejs": "^3.1.10",
     "eslint": "^9.38.0",
-    "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-prettier": "^5.5.4",
     "express": "^5.1.0",
     "express-rate-limit": "^8.1.0",
     "express-session": "^1.18.2",
@@ -105,7 +101,6 @@
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",
-    "prettier": "^3.6.2",
     "pug": "^3.0.3",
     "supertest": "^7.1.4",
     "ts-jest": "^29.1.1",
