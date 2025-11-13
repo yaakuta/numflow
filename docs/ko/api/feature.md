@@ -272,7 +272,7 @@ export default validateOrder
 
 모든 step이 공유하는 순수 비즈니스 데이터 저장소입니다.
 
-**v0.3.0 변경사항**: Context에서 `req`, `res`가 제거되어 순수 비즈니스 데이터만 포함합니다. HTTP 계층(`req`, `res`)은 Step 함수의 별도 파라미터로 전달됩니다.
+Context에서 `req`, `res`가 제거되어 순수 비즈니스 데이터만 포함합니다. HTTP 계층(`req`, `res`)은 Step 함수의 별도 파라미터로 전달됩니다.
 
 ```javascript
 const context = {
@@ -285,7 +285,7 @@ const context = {
   // 사용자가 저장한 모든 필드들...
 }
 
-// Step 함수 시그니처 (v0.3.0)
+// Step 함수 시그니처
 module.exports = async (ctx, req, res) => {
   // ctx: 순수 비즈니스 데이터
   // req: HTTP Request 객체
@@ -299,7 +299,7 @@ module.exports = async (ctx, req, res) => {
 
 비동기 작업은 Step 실행 완료 후 자동으로 큐에 추가됩니다.
 
-**v0.3.0 변경사항**: AsyncTask 함수는 Context만 받습니다 (req, res 없음). Context에서 필요한 데이터를 직접 읽으세요.
+AsyncTask 함수는 Context만 받습니다 (req, res 없음). Context에서 필요한 데이터를 직접 읽으세요.
 
 **JavaScript:**
 ```javascript
@@ -1137,7 +1137,7 @@ module.exports = numflow.feature({
   },
 })
 
-// features/create-order/steps/100-validate-order.js (v0.4.0)
+// features/create-order/steps/100-validate-order.js
 async function validateOrder(ctx, req, res) {
   // 검증 로직
   const orderData = req.body
@@ -1146,7 +1146,7 @@ async function validateOrder(ctx, req, res) {
 }
 module.exports = validateOrder
 
-// features/create-order/steps/200-check-inventory.js (v0.4.0)
+// features/create-order/steps/200-check-inventory.js
 async function checkInventory(ctx, req, res) {
   // 재고 확인 로직
   ctx.inventoryChecked = true  // 명시적 저장

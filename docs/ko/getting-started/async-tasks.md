@@ -1,5 +1,5 @@
 # AsyncTasks 완벽 가이드
-> **Numflow Feature API의 비동기 작업 자동 실행 (v0.3.0)**
+> **Numflow Feature API의 비동기 작업 자동 실행**
 
 ---
 
@@ -83,7 +83,7 @@ module.exports = numflow.feature({
 ```
 
 ```javascript
-// steps/300-respond.js - 마지막 Step에서 응답 (v0.4.0)
+// steps/300-respond.js - 마지막 Step에서 응답
 async function respond(ctx, req, res) {
   res.json({ orderId: ctx.order.id })  // 200ms에 응답!
   return  // ⚠️ return 필수!
@@ -182,7 +182,7 @@ AsyncTask가 실행되려면 **모든 Steps가 성공적으로 완료**되어야
 #### 1. 모든 Step이 정상 완료 + 응답 전송
 
 ```javascript
-// steps/100-validate.js (v0.4.0)
+// steps/100-validate.js
 async function validate(ctx, req, res) {
   // 검증 로직
   ctx.validated = true
@@ -192,7 +192,7 @@ module.exports = validate
 ```
 
 ```javascript
-// steps/200-create-order.js (v0.4.0)
+// steps/200-create-order.js
 async function createOrder(ctx, req, res) {
   const order = await db.orders.create(req.body)
   ctx.order = order
@@ -202,7 +202,7 @@ module.exports = createOrder
 ```
 
 ```javascript
-// steps/300-response.js (v0.4.0)
+// steps/300-response.js
 async function response(ctx, req, res) {
   res.json({ orderId: ctx.order.id })  // ✅ 응답 전송
   return  // ⚠️ return 필수!
@@ -220,7 +220,7 @@ module.exports = response
 #### 2. 조기 응답 (Early Return)
 
 ```javascript
-// steps/100-validate.js (v0.4.0)
+// steps/100-validate.js
 async function validate(ctx, req, res) {
   if (!req.body.productId) {
     // 에러 응답 전송 후 return
@@ -256,7 +256,7 @@ module.exports = createOrder
 #### 1. Step에서 `throw Error`
 
 ```javascript
-// steps/100-validate.js (v0.4.0)
+// steps/100-validate.js
 async function validate(ctx, req, res) {
   if (!req.body.productId) {
     throw new Error('productId is required')  // ❌ 에러 발생!
@@ -273,7 +273,7 @@ module.exports = validate
 #### 2. 응답을 전송하지 않음
 
 ```javascript
-// steps/100-validate.js (v0.4.0)
+// steps/100-validate.js
 async function validate(ctx, req, res) {
   ctx.validated = true
   // 끝! 자동으로 다음 Step 진행
@@ -282,7 +282,7 @@ module.exports = validate
 ```
 
 ```javascript
-// steps/200-create-order.js (v0.4.0)
+// steps/200-create-order.js
 async function createOrder(ctx, req, res) {
   const order = await db.orders.create(req.body)
   ctx.order = order
@@ -632,7 +632,7 @@ contextInitializer: (ctx, req, res) => {
 ### Steps에서 Context 생성
 
 ```javascript
-// steps/200-create-order.js (v0.4.0)
+// steps/200-create-order.js
 async function createOrder(ctx, req, res) {
   const order = await db.orders.create(ctx.orderData)
 
@@ -1005,7 +1005,7 @@ async function enqueueHeavyTask(ctx) {
 
 ### Q8. AsyncTask는 재시도되나요?
 
-**A:** v0.3.0에서는 **재시도 기능이 없습니다**. 재시도가 필요하다면 메시지 큐 시스템을 사용하세요.
+**A:** 현재 **재시도 기능이 없습니다**. 재시도가 필요하다면 메시지 큐 시스템을 사용하세요.
 
 ---
 
@@ -1019,4 +1019,4 @@ AsyncTasks는 Numflow의 **Convention over Configuration** 철학을 따릅니�
 
 ---
 
-마지막 업데이트: 2025-10-18 (AsyncTasks 가이드 완전 재작성 - v0.3.0)
+마지막 업데이트: 2025-10-18 (AsyncTasks 가이드 완전 재작성)

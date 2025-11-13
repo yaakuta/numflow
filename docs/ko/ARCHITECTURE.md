@@ -1410,7 +1410,7 @@ async function stepName(context) {
   // 2. 현재 step 로직 수행
   const result = await doSomething(context.orderData)
 
-  // 3. 결과 저장 (v0.4.0)
+  // 3. 결과 저장
   ctx.currentStep = result
 
   // 끝! 자동으로 다음 Step 진행
@@ -1885,7 +1885,7 @@ module.exports = async function(context) {
     throw new Error('No items in order')
   }
 
-  // context에 추가 (Debug Mode에서 표시됨) (v0.4.0)
+  // context에 추가 (Debug Mode에서 표시됨)
   ctx.validation = {
     isValid: true,
     itemCount: orderData.items.length

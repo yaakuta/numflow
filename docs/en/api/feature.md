@@ -314,7 +314,7 @@ export default validateOrder
 
 Shared pure business data storage across all steps.
 
-**v0.3.0 Change**: `req` and `res` removed from Context to keep it pure business data only. HTTP layer objects are passed as separate parameters to step functions.
+`req` and `res` removed from Context to keep it pure business data only. HTTP layer objects are passed as separate parameters to step functions.
 
 ```javascript
 const context = {
@@ -327,7 +327,7 @@ const context = {
   // All user-stored fields...
 }
 
-// Step function signature (v0.3.0+)
+// Step function signature 
 module.exports = async (ctx, req, res) => {
   // ctx: Pure business data
   // req: HTTP Request object
@@ -341,7 +341,7 @@ module.exports = async (ctx, req, res) => {
 
 Async tasks are automatically queued after all steps complete.
 
-**v0.3.0 Change**: AsyncTask functions only receive Context (no req, res). Read required data directly from Context.
+AsyncTask functions only receive Context (no req, res). Read required data directly from Context.
 
 ### AsyncTask Function Signature
 

@@ -174,7 +174,7 @@ module.exports = numflow.feature({
 **Step 파일들 (자동 발견 및 실행)**:
 ```javascript
 // steps/100-validate.js
-// v0.4.0: Step 함수는 (ctx, req, res) 3개 파라미터 받음
+// Step 함수는 (ctx, req, res) 3개 파라미터 받음
 module.exports = async (ctx, req, res) => {
   if (!req.body.productId) {  // req에서 직접 접근
     throw new Error('Missing productId')
@@ -206,7 +206,7 @@ module.exports = async (ctx, req, res) => {
 }
 
 // async-tasks/send-notification.js (Step 완료 후 비동기)
-// v0.4.0: AsyncTask 함수는 (ctx) 1개 파라미터만 받음
+// AsyncTask 함수는 (ctx) 1개 파라미터만 받음
 module.exports = async (ctx) => {
   await sendNotification(ctx.order)  // Context에서 직접 접근
 }
@@ -252,7 +252,7 @@ my-app/
 
 ### 2. Step 파일 작성
 
-**v0.4.0: Step 함수는 (ctx, req, res) 3개의 파라미터를 받습니다.**
+Step 함수는 (ctx, req, res) 3개의 파라미터를 받습니다.**
 
 ```javascript
 // features/api/orders/@post/steps/100-validate.js
@@ -540,7 +540,7 @@ steps/
 
 ### Step 함수 형식
 
-**v0.4.0: Step 함수는 (ctx, req, res) 3개의 파라미터를 받습니다.**
+Step 함수는 (ctx, req, res) 3개의 파라미터를 받습니다.**
 
 **CommonJS (JavaScript)**:
 
@@ -584,7 +584,7 @@ export default async (
 }
 ```
 
-### 흐름 제어 (v0.4.0)
+### 흐름 제어
 
 **Step 함수의 흐름 제어는 JavaScript 기본 동작을 따릅니다:**
 
@@ -596,7 +596,7 @@ export default async (
 
 **✨ 핵심: return 값은 완전히 무시됩니다.**
 
-**올바른 사용 예제 (v0.4.0)**:
+**올바른 사용 예제**:
 ```javascript
 // 100-get-user.js - 일반적인 사용 (99%)
 module.exports = async (ctx, req, res) => {
@@ -651,10 +651,10 @@ module.exports = async (ctx, req, res) => {
 
 ### Context 객체
 
-**v0.4.0: Context는 순수 비즈니스 데이터만 포함합니다.** req와 res는 Step 함수의 파라미터로 직접 전달됩니다.
+Context는 순수 비즈니스 데이터만 포함합니다.** req와 res는 Step 함수의 파라미터로 직접 전달됩니다.
 
 ```typescript
-// v0.4.0 Context 인터페이스
+// Context 인터페이스
 interface Context {
   [key: string]: any  // 순수 비즈니스 데이터 (req, res는 제거됨)
 }
@@ -669,7 +669,7 @@ type StepFunction = (
 
 ### 데이터 저장 및 접근
 
-**v0.4.0: 모든 데이터는 Context에 직접 저장됩니다.** Context는 순수 비즈니스 데이터만 포함합니다.
+모든 데이터는 Context에 직접 저장됩니다.** Context는 순수 비즈니스 데이터만 포함합니다.
 
 ```javascript
 // 100-validate.js
@@ -719,7 +719,7 @@ module.exports = async (ctx, req, res) => {
 
 ### Request 데이터 접근
 
-**v0.4.0: req 파라미터에서 직접 접근합니다.**
+req 파라미터에서 직접 접근합니다.**
 
 ```javascript
 module.exports = async (ctx, req, res) => {
@@ -1125,7 +1125,7 @@ module.exports = numflow.feature({
 })
 ```
 
-**Step 파일들 (v0.4.0)**:
+**Step 파일들**:
 ```javascript
 // steps/100-validate.js
 const Joi = require('joi')
@@ -1429,12 +1429,12 @@ module.exports = numflow.feature({
 })
 ```
 
-**Async Task 파일들 (v0.3.0)**:
+**Async Task 파일들**:
 ```javascript
 // async-tasks/send-confirmation-email.js
 const Email = require('../../../../../services/Email')
 
-// v0.3.0: AsyncTask 함수는 (ctx) 1개 파라미터만 받음
+// AsyncTask 함수는 (ctx) 1개 파라미터만 받음
 module.exports = async (ctx) => {
   const { order } = ctx  // ← Context에서 직접 접근
 
@@ -1451,7 +1451,7 @@ module.exports = async (ctx) => {
 // async-tasks/notify-slack.js
 const Slack = require('../../../../../services/Slack')
 
-// v0.3.0: AsyncTask 함수는 (ctx) 1개 파라미터만 받음
+// AsyncTask 함수는 (ctx) 1개 파라미터만 받음
 module.exports = async (ctx) => {
   const { order } = ctx  // ← Context에서 직접 접근
 
@@ -1623,7 +1623,7 @@ onError: async (error, context, req, res) => {
 
 ```javascript
 // ✅ Good: 중복 실행해도 안전
-// v0.3.0: AsyncTask 함수는 (ctx) 1개 파라미터만 받음
+// AsyncTask 함수는 (ctx) 1개 파라미터만 받음
 module.exports = async (ctx) => {
   const { orderId } = ctx.order  // ← Context에서 직접 접근
 
@@ -1651,7 +1651,7 @@ const validate = require('../steps/100-validate')
 
 describe('100-validate', () => {
   it('should validate email', async () => {
-    // v0.3.0: Step 함수는 (ctx, req, res) 3개 파라미터
+    // Step 함수는 (ctx, req, res) 3개 파라미터
     const ctx = {}
     const req = { body: { email: 'test@example.com' } }
     const res = {}
@@ -1683,5 +1683,5 @@ describe('100-validate', () => {
 ---
 
 **마지막 업데이트**: 2025-11-10 (다중 Features 디렉토리 등록 및 라우트 충돌 처리 가이드 추가)
-**이전**: 2025-10-18 (v0.3.0 전면 반영: Context Separation, Step 함수 시그니처 변경 `(ctx, req, res)`, AsyncTask 함수 `(ctx)`, 모든 예제 수정)
+**이전**: 2025-10-18 `, AsyncTask 함수 `(ctx)`, 모든 예제 수정)
 **이전**: [목차](./README.md)
