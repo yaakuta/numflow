@@ -13,6 +13,9 @@ coverage/
 # Benchmarks (users can check docs/benchmark-report.md for results)
 benchmarks/
 
+# Examples (available on GitHub)
+examples/
+
 # Separate packages (publish separately)
 create-numflow-app/
 
