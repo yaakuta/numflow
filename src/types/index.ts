@@ -386,3 +386,9 @@ export interface RouteOptions {
   ignoreTrailingSlash?: boolean
   caseSensitive?: boolean
 }
+
+/**
+ * Light-my-request types for inject() method
+ * Re-export from light-my-request for convenience
+ */
+export type { InjectOptions, Response as InjectResponse, CallbackFunc as InjectCallback } from 'light-my-request'

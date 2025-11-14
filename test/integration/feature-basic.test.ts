@@ -1,42 +1,13 @@
 /**
  * Basic Feature integration test
- * Basic Feature functionality tests
+ * Tests Feature functionality using inject() for fast, reliable testing
  */
 
 import numflow from '../../src/index'
-import { Application } from '../../src/application'
-import http from 'http'
-
-jest.setTimeout(10000)
 
 describe('Feature Basic Integration', () => {
-  let app: Application
-  let server: http.Server | null = null
-  let portCounter = 8000
-
-  beforeEach(() => {
-    portCounter++
-  })
-
-  afterEach(async () => {
-    if (server && server.listening) {
-      server.closeAllConnections?.()
-      await new Promise<void>((resolve) => {
-        const timeout = setTimeout(() => resolve(), 2000)
-        server!.close(() => {
-          clearTimeout(timeout)
-          resolve()
-        })
-      })
-    }
-    server = null
-    app = null as any
-    await new Promise(resolve => setTimeout(resolve, 100))
-  })
-
   it('Feature should respond with basic step execution', async () => {
-    app = numflow()
-    const port = portCounter
+    const app = numflow()
 
     // Simple Feature without middlewares
     app.use(numflow.feature({
@@ -45,43 +16,14 @@ describe('Feature Basic Integration', () => {
       steps: './test/__fixtures__/feature-integration/basic-steps',
     }))
 
-    return new Promise<void>((resolve, reject) => {
-      server = app.listen(port, () => {
-        const options = {
-          hostname: 'localhost',
-          port,
-          path: '/api/test',
-          method: 'GET',
-        }
-
-        const req = http.request(options, (res) => {
-          let data = ''
-          res.on('data', (chunk) => {
-            data += chunk
-          })
-
-          res.on('end', () => {
-            try {
-              console.log('Response status:', res.statusCode)
-              console.log('Response data:', data)
-              expect(res.statusCode).toBe(200)
-              const body = JSON.parse(data)
-              expect(body.success).toBe(true)
-              resolve()
-            } catch (error) {
-              reject(error)
-            }
-          })
-        })
-
-        req.on('error', reject)
-        req.end()
-      })
-
-      // Timeout handling
-      setTimeout(() => {
-        reject(new Error('Test timeout'))
-      }, 5000).unref()
+    // Use inject() for fast testing without server startup
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/test',
     })
+
+    expect(response.statusCode).toBe(200)
+    const body = JSON.parse(response.payload)
+    expect(body.success).toBe(true)
   })
 })

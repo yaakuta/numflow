@@ -380,34 +380,19 @@ describe('Application', () => {
       })
     })
 
-    it('default error handler should handle generic errors as 500', (done) => {
+    it('default error handler should handle generic errors as 500', async () => {
       app = numflow()
-      const port = 3106
 
       app.get('/error', () => {
         throw new Error('Unexpected error')
       })
 
-      server = app.listen(port, () => {
-        http.get(`http://localhost:${port}/error`, (res) => {
-          expect(res.statusCode).toBe(500)
+      const response = await app.inject({ method: 'GET', url: '/error' })
+      expect(response.statusCode).toBe(500)
 
-          let data = ''
-          res.on('data', (chunk) => {
-            data += chunk
-          })
-
-          res.on('end', () => {
-            const body = JSON.parse(data)
-            expect(body.error.message).toBe('Unexpected error')
-            expect(body.error.statusCode).toBe(500)
-            server.close(() => {
-              server = null as any
-              done()
-            })
-          })
-        })
-      })
+      const body = JSON.parse(response.payload)
+      expect(body.error.message).toBe('Unexpected error')
+      expect(body.error.statusCode).toBe(500)
     })
 
     it.skip('should include validationErrors from ValidationError in response', (done) => {

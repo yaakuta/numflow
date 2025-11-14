@@ -47,6 +47,109 @@ app.listen(3000, () => {
 
 **참고**: [Feature 등록 방법](./feature.md#feature-등록-방법)을 참조하세요.
 
+### app.inject(options[, callback])
+
+서버를 시작하지 않고 HTTP 요청을 시뮬레이션합니다. 테스트에 매우 유용하며, Fastify의 `light-my-request` 기반으로 동작합니다.
+
+**특징**:
+- ⚡ 서버 시작 없이 즉시 테스트 (99% 빠름)
+- 🔄 Feature-First와 완벽 호환 (Feature 등록 완료까지 자동 대기)
+- ✅ Promise와 Callback 스타일 모두 지원
+
+**JavaScript (Promise):**
+```javascript
+const numflow = require('numflow')
+const app = numflow()
+
+app.get('/users', (req, res) => {
+  res.json({ users: [] })
+})
+
+// inject()로 테스트
+const response = await app.inject({
+  method: 'GET',
+  url: '/users'
+})
+
+console.log(response.statusCode) // 200
+console.log(JSON.parse(response.payload)) // { users: [] }
+```
+
+**JavaScript (Callback):**
+```javascript
+app.inject(
+  { method: 'GET', url: '/users' },
+  (err, response) => {
+    if (err) throw err
+    console.log(response.statusCode) // 200
+  }
+)
+```
+
+**POST 요청 예제:**
+```javascript
+const response = await app.inject({
+  method: 'POST',
+  url: '/users',
+  payload: { name: 'John', age: 30 },
+  headers: {
+    'content-type': 'application/json'
+  }
+})
+
+console.log(response.statusCode) // 201
+const body = JSON.parse(response.payload)
+console.log(body.name) // 'John'
+```
+
+**Feature-First 테스트:**
+```javascript
+// Feature 등록
+app.use(numflow.feature({
+  method: 'POST',
+  path: '/api/orders',
+  steps: './steps'
+}))
+
+// inject()가 Feature 등록 완료까지 자동으로 대기!
+const response = await app.inject({
+  method: 'POST',
+  url: '/api/orders',
+  payload: { productId: 123 },
+  headers: { 'content-type': 'application/json' }
+})
+```
+
+**Parameters:**
+
+- **options** (object, required):
+  - `method` (string, required): HTTP 메서드 ('GET', 'POST', 'PUT', 'DELETE' 등)
+  - `url` (string, required): 요청 URL (쿼리 파라미터 포함 가능)
+  - `payload` (object | string, optional): 요청 본문
+  - `headers` (object, optional): 요청 헤더
+  - `query` (object, optional): 쿼리 파라미터
+
+- **callback** (function, optional): `(err, response) => void`
+  - callback을 제공하지 않으면 Promise를 반환합니다
+
+**Response Object:**
+
+```typescript
+{
+  statusCode: number     // HTTP 상태 코드
+  statusMessage: string  // 상태 메시지
+  headers: object        // 응답 헤더
+  payload: string        // 응답 본문 (문자열)
+  rawPayload: Buffer     // 응답 본문 (Buffer)
+}
+```
+
+**반환값**:
+- Promise 스타일: `Promise<Response>`
+- Callback 스타일: `void`
+
+**참고**: 자세한 테스트 가이드는 [테스트하기](../getting-started/testing.md)를 참조하세요.
+
 ### app.use([path], ...middleware)
 
 미들웨어를 등록합니다.

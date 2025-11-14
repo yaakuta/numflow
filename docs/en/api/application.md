@@ -110,6 +110,111 @@ process.on('SIGTERM', () => {
 
 ---
 
+### app.inject(options[, callback])
+
+Simulates HTTP requests without starting a server. Very useful for testing, based on Fastify's `light-my-request`.
+
+**Features:**
+- ⚡ Instant testing without server startup (99% faster)
+- 🔄 Perfect compatibility with Feature-First (automatically waits for Feature registration)
+- ✅ Supports both Promise and Callback styles
+
+**JavaScript (Promise):**
+```javascript
+const numflow = require('numflow')
+const app = numflow()
+
+app.get('/users', (req, res) => {
+  res.json({ users: [] })
+})
+
+// Test with inject()
+const response = await app.inject({
+  method: 'GET',
+  url: '/users'
+})
+
+console.log(response.statusCode) // 200
+console.log(JSON.parse(response.payload)) // { users: [] }
+```
+
+**JavaScript (Callback):**
+```javascript
+app.inject(
+  { method: 'GET', url: '/users' },
+  (err, response) => {
+    if (err) throw err
+    console.log(response.statusCode) // 200
+  }
+)
+```
+
+**POST Request Example:**
+```javascript
+const response = await app.inject({
+  method: 'POST',
+  url: '/users',
+  payload: { name: 'John', age: 30 },
+  headers: {
+    'content-type': 'application/json'
+  }
+})
+
+console.log(response.statusCode) // 201
+const body = JSON.parse(response.payload)
+console.log(body.name) // 'John'
+```
+
+**Feature-First Testing:**
+```javascript
+// Register Feature
+app.use(numflow.feature({
+  method: 'POST',
+  path: '/api/orders',
+  steps: './steps'
+}))
+
+// inject() automatically waits for Feature registration!
+const response = await app.inject({
+  method: 'POST',
+  url: '/api/orders',
+  payload: { productId: 123 },
+  headers: { 'content-type': 'application/json' }
+})
+```
+
+**Parameters:**
+
+- **options** (object, required):
+  - `method` (string, required): HTTP method ('GET', 'POST', 'PUT', 'DELETE', etc.)
+  - `url` (string, required): Request URL (can include query parameters)
+  - `payload` (object | string, optional): Request body
+  - `headers` (object, optional): Request headers
+  - `query` (object, optional): Query parameters
+
+- **callback** (function, optional): `(err, response) => void`
+  - If callback is not provided, returns a Promise
+
+**Response Object:**
+
+```typescript
+{
+  statusCode: number     // HTTP status code
+  statusMessage: string  // Status message
+  headers: object        // Response headers
+  payload: string        // Response body (string)
+  rawPayload: Buffer     // Response body (Buffer)
+}
+```
+
+**Returns:**
+- Promise style: `Promise<Response>`
+- Callback style: `void`
+
+**See also:** For detailed testing guide, see [Testing](../getting-started/testing.md).
+
+---
+
 ## Routing Methods
 
 ### app.get(path, ...handlers)

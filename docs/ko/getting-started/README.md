@@ -4,7 +4,7 @@ Numflow 프레임워크를 시작하는 방법을 단계별로 안내합니다.
 
 > **참고**: 이 문서는 현재 구현된 기능만 포함하고 있으며, 새로운 기능이 추가될 때마다 업데이트됩니다.
 >
-> **현재 상태**: 구현 완료 (res.download(), res.jsonp() 추가) ✅
+> **현재 상태**: app.inject() 테스트 가이드 추가 ✅
 
 ---
 
@@ -26,6 +26,7 @@ Numflow 프레임워크를 시작하는 방법을 단계별로 안내합니다.
 - **[프로젝트 구조](./project-structure.md)** - 구조 패턴, Best Practices
 
 ### 개발 환경
+- **[테스트하기](./testing.md)** ⚡ - app.inject()로 빠른 테스트
 - **[Debug Mode](./debug-mode.md)** 🐛 - Feature 디버깅, Context 추적
 - **[TypeScript 사용](./typescript.md)** - TypeScript 설정
 
@@ -66,4 +67,4 @@ app.listen(3000, () => {
 
 ---
 
-**마지막 업데이트**: 2025-11-11 (문서 통합 정리)
+**마지막 업데이트**: 2025-11-14 (app.inject() 테스트 가이드 추가)

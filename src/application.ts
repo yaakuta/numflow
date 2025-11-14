@@ -907,6 +907,88 @@ export class Application extends EventEmitter {
   }
 
   /**
+   * Inject a fake HTTP request/response for testing without starting the server
+   *
+   * This method uses light-my-request to inject requests directly into the handler,
+   * bypassing the need for an actual TCP connection. This makes tests much faster
+   * and eliminates port conflicts.
+   *
+   * @param options - Request options (method, url, payload, headers, etc.)
+   * @param callback - Optional callback (if not provided, returns a Promise)
+   * @returns Promise<Response> or void (if callback provided)
+   *
+   * @example
+   * // Promise style
+   * const res = await app.inject({
+   *   method: 'GET',
+   *   url: '/'
+   * })
+   * console.log(res.statusCode) // 200
+   * console.log(res.payload)    // response body
+   *
+   * @example
+   * // POST with JSON payload
+   * const res = await app.inject({
+   *   method: 'POST',
+   *   url: '/users',
+   *   payload: { name: 'John', age: 30 },
+   *   headers: { 'content-type': 'application/json' }
+   * })
+   *
+   * @example
+   * // Callback style
+   * app.inject({ method: 'GET', url: '/' }, (err, res) => {
+   *   console.log(res.statusCode)
+   * })
+   *
+   * @example
+   * // With Feature-First (automatically waits for registration)
+   * app.registerFeatures('./features')
+   * const res = await app.inject({
+   *   method: 'POST',
+   *   url: '/api/feature'
+   * })
+   */
+  inject(options: string | import('light-my-request').InjectOptions): Promise<import('light-my-request').Response>
+  inject(options: string | import('light-my-request').InjectOptions, callback: import('light-my-request').CallbackFunc): void
+  inject(
+    options: string | import('light-my-request').InjectOptions,
+    callback?: import('light-my-request').CallbackFunc
+  ): Promise<import('light-my-request').Response> | void {
+    // Lazy load light-my-request (performance optimization)
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const lightMyRequest = require('light-my-request')
+
+    // Wait for Feature registration
+    const ready = async (): Promise<void> => {
+      if (this.featureRegistrationPromises.length > 0) {
+        await Promise.all(this.featureRegistrationPromises)
+      }
+    }
+
+    if (callback) {
+      // Callback style
+      ready()
+        .then(() => {
+          lightMyRequest(this.handleRequest.bind(this), options, callback)
+        })
+        .catch(err => callback(err, undefined))
+    } else {
+      // Promise style
+      return new Promise((resolve, reject) => {
+        ready()
+          .then(() => {
+            lightMyRequest(this.handleRequest.bind(this), options, (err: Error | null, res: import('light-my-request').Response) => {
+              if (err) reject(err)
+              else resolve(res)
+            })
+          })
+          .catch(reject)
+      })
+    }
+  }
+
+  /**
    * Register Feature (INTERNAL USE ONLY)
    *
    * Registers and initializes a Feature.

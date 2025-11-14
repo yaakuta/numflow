@@ -8,7 +8,7 @@ import * as http from 'http'
 
 describe('Router', () => {
   describe('HTTP Method Routing', () => {
-    it('should register and call GET route', (done) => {
+    it('should register and call GET route', async () => {
       const app = numflow()
 
       app.get('/users', (_req, res) => {
@@ -17,26 +17,12 @@ describe('Router', () => {
         res.end(JSON.stringify({ method: 'GET', path: '/users' }))
       })
 
-      const server = app.listen(0, () => {
-        const address = server.address() as any
-        const port = address.port
-
-        http.get(`http://localhost:${port}/users`, (res) => {
-          let data = ''
-          res.on('data', (chunk) => {
-            data += chunk
-          })
-          res.on('end', () => {
-            expect(res.statusCode).toBe(200)
-            expect(JSON.parse(data)).toEqual({ method: 'GET', path: '/users' })
-            server.close()
-            done()
-          })
-        })
-      })
+      const response = await app.inject({ method: 'GET', url: '/users' })
+      expect(response.statusCode).toBe(200)
+      expect(JSON.parse(response.payload)).toEqual({ method: 'GET', path: '/users' })
     })
 
-    it('should register and call POST route', (done) => {
+    it('should register and call POST route', async () => {
       const app = numflow()
 
       app.post('/users', (_req, res) => {
@@ -45,38 +31,14 @@ describe('Router', () => {
         res.end(JSON.stringify({ method: 'POST', path: '/users' }))
       })
 
-      const server = app.listen(0, () => {
-        const address = server.address() as any
-        const port = address.port
-
-        const req = http.request(
-          {
-            hostname: 'localhost',
-            port,
-            path: '/users',
-            method: 'POST',
-          },
-          (res) => {
-            let data = ''
-            res.on('data', (chunk) => {
-              data += chunk
-            })
-            res.on('end', () => {
-              expect(res.statusCode).toBe(201)
-              expect(JSON.parse(data)).toEqual({ method: 'POST', path: '/users' })
-              server.close()
-              done()
-            })
-          }
-        )
-
-        req.end()
-      })
+      const response = await app.inject({ method: 'POST', url: '/users' })
+      expect(response.statusCode).toBe(201)
+      expect(JSON.parse(response.payload)).toEqual({ method: 'POST', path: '/users' })
     })
   })
 
   describe('Path Parameters', () => {
-    it('should extract dynamic parameters', (done) => {
+    it('should extract dynamic parameters', async () => {
       const app = numflow()
 
       app.get('/users/:id', (req, res) => {
@@ -86,26 +48,12 @@ describe('Router', () => {
         res.end(JSON.stringify({ userId: params.id }))
       })
 
-      const server = app.listen(0, () => {
-        const address = server.address() as any
-        const port = address.port
-
-        http.get(`http://localhost:${port}/users/123`, (res) => {
-          let data = ''
-          res.on('data', (chunk) => {
-            data += chunk
-          })
-          res.on('end', () => {
-            expect(res.statusCode).toBe(200)
-            expect(JSON.parse(data)).toEqual({ userId: '123' })
-            server.close()
-            done()
-          })
-        })
-      })
+      const response = await app.inject({ method: 'GET', url: '/users/123' })
+      expect(response.statusCode).toBe(200)
+      expect(JSON.parse(response.payload)).toEqual({ userId: '123' })
     })
 
-    it('should extract multiple parameters', (done) => {
+    it('should extract multiple parameters', async () => {
       const app = numflow()
 
       app.get('/users/:userId/posts/:postId', (req, res) => {
@@ -115,28 +63,14 @@ describe('Router', () => {
         res.end(JSON.stringify({ userId: params.userId, postId: params.postId }))
       })
 
-      const server = app.listen(0, () => {
-        const address = server.address() as any
-        const port = address.port
-
-        http.get(`http://localhost:${port}/users/123/posts/456`, (res) => {
-          let data = ''
-          res.on('data', (chunk) => {
-            data += chunk
-          })
-          res.on('end', () => {
-            expect(res.statusCode).toBe(200)
-            expect(JSON.parse(data)).toEqual({ userId: '123', postId: '456' })
-            server.close()
-            done()
-          })
-        })
-      })
+      const response = await app.inject({ method: 'GET', url: '/users/123/posts/456' })
+      expect(response.statusCode).toBe(200)
+      expect(JSON.parse(response.payload)).toEqual({ userId: '123', postId: '456' })
     })
   })
 
   describe('Query Parameters', () => {
-    it('should parse query parameters', (done) => {
+    it('should parse query parameters', async () => {
       const app = numflow()
 
       app.get('/search', (req, res) => {
@@ -146,28 +80,14 @@ describe('Router', () => {
         res.end(JSON.stringify({ query }))
       })
 
-      const server = app.listen(0, () => {
-        const address = server.address() as any
-        const port = address.port
-
-        http.get(`http://localhost:${port}/search?q=test&page=1`, (res) => {
-          let data = ''
-          res.on('data', (chunk) => {
-            data += chunk
-          })
-          res.on('end', () => {
-            expect(res.statusCode).toBe(200)
-            expect(JSON.parse(data)).toEqual({ query: { q: 'test', page: '1' } })
-            server.close()
-            done()
-          })
-        })
-      })
+      const response = await app.inject({ method: 'GET', url: '/search?q=test&page=1' })
+      expect(response.statusCode).toBe(200)
+      expect(JSON.parse(response.payload)).toEqual({ query: { q: 'test', page: '1' } })
     })
   })
 
   describe('Route Chaining', () => {
-    it('should register multiple methods with route() method', (done) => {
+    it('should register multiple methods with route() method', async () => {
       const app = numflow()
 
       app.route('/users')
@@ -182,51 +102,20 @@ describe('Router', () => {
           res.end(JSON.stringify({ method: 'POST' }))
         })
 
-      const server = app.listen(0, () => {
-        const address = server.address() as any
-        const port = address.port
+      // Test GET request
+      const getResponse = await app.inject({ method: 'GET', url: '/users' })
+      expect(getResponse.statusCode).toBe(200)
+      expect(JSON.parse(getResponse.payload)).toEqual({ method: 'GET' })
 
-        // Test GET request
-        http.get(`http://localhost:${port}/users`, (res) => {
-          let data = ''
-          res.on('data', (chunk) => {
-            data += chunk
-          })
-          res.on('end', () => {
-            expect(res.statusCode).toBe(200)
-            expect(JSON.parse(data)).toEqual({ method: 'GET' })
-
-            // Test POST request
-            const req = http.request(
-              {
-                hostname: 'localhost',
-                port,
-                path: '/users',
-                method: 'POST',
-              },
-              (res) => {
-                let data = ''
-                res.on('data', (chunk) => {
-                  data += chunk
-                })
-                res.on('end', () => {
-                  expect(res.statusCode).toBe(201)
-                  expect(JSON.parse(data)).toEqual({ method: 'POST' })
-                  server.close()
-                  done()
-                })
-              }
-            )
-
-            req.end()
-          })
-        })
-      })
+      // Test POST request
+      const postResponse = await app.inject({ method: 'POST', url: '/users' })
+      expect(postResponse.statusCode).toBe(201)
+      expect(JSON.parse(postResponse.payload)).toEqual({ method: 'POST' })
     })
   })
 
   describe('404 Not Found', () => {
-    it('should return 404 for unregistered routes', (done) => {
+    it('should return 404 for unregistered routes', async () => {
       const app = numflow()
 
       app.get('/users', (_req, res) => {
@@ -234,25 +123,11 @@ describe('Router', () => {
         res.end('OK')
       })
 
-      const server = app.listen(0, () => {
-        const address = server.address() as any
-        const port = address.port
-
-        http.get(`http://localhost:${port}/not-found`, (res) => {
-          let data = ''
-          res.on('data', (chunk) => {
-            data += chunk
-          })
-          res.on('end', () => {
-            expect(res.statusCode).toBe(404)
-            const parsed = JSON.parse(data)
-            expect(parsed.success).toBe(false)
-            expect(parsed.error).toBe('Not Found')
-            server.close()
-            done()
-          })
-        })
-      })
+      const response = await app.inject({ method: 'GET', url: '/not-found' })
+      expect(response.statusCode).toBe(404)
+      const parsed = JSON.parse(response.payload)
+      expect(parsed.success).toBe(false)
+      expect(parsed.error).toBe('Not Found')
     })
   })
 
@@ -265,7 +140,7 @@ describe('Router', () => {
       expect(typeof router.use).toBe('function')
     })
 
-    it('should register and mount Router routes', (done) => {
+    it('should register and mount Router routes', async () => {
       const app = numflow()
       const apiRouter = numflow.Router()
 
@@ -283,26 +158,12 @@ describe('Router', () => {
 
       app.use('/api', apiRouter)
 
-      const server = app.listen(0, () => {
-        const address = server.address() as any
-        const port = address.port
-
-        http.get(`http://localhost:${port}/api/users`, (res) => {
-          let data = ''
-          res.on('data', (chunk) => {
-            data += chunk
-          })
-          res.on('end', () => {
-            expect(res.statusCode).toBe(200)
-            expect(JSON.parse(data)).toEqual({ message: 'Users list' })
-            server.close()
-            done()
-          })
-        })
-      })
+      const response = await app.inject({ method: 'GET', url: '/api/users' })
+      expect(response.statusCode).toBe(200)
+      expect(JSON.parse(response.payload)).toEqual({ message: 'Users list' })
     })
 
-    it('Router-level middleware', (done) => {
+    it('Router-level middleware', async () => {
       const app = numflow()
       const apiRouter = numflow.Router()
 
@@ -321,26 +182,12 @@ describe('Router', () => {
 
       app.use('/api', apiRouter)
 
-      const server = app.listen(0, () => {
-        const address = server.address() as any
-        const port = address.port
-
-        http.get(`http://localhost:${port}/api/test`, (res) => {
-          let data = ''
-          res.on('data', (chunk) => {
-            data += chunk
-          })
-          res.on('end', () => {
-            expect(res.statusCode).toBe(200)
-            expect(JSON.parse(data).middlewareExecuted).toContain('router-middleware')
-            server.close()
-            done()
-          })
-        })
-      })
+      const response = await app.inject({ method: 'GET', url: '/api/test' })
+      expect(response.statusCode).toBe(200)
+      expect(JSON.parse(response.payload).middlewareExecuted).toContain('router-middleware')
     })
 
-    it('Nested Router', (done) => {
+    it('Nested Router', async () => {
       const app = numflow()
       const apiRouter = numflow.Router()
       const usersRouter = numflow.Router()
@@ -354,26 +201,12 @@ describe('Router', () => {
       apiRouter.use('/users', usersRouter)
       app.use('/api', apiRouter)
 
-      const server = app.listen(0, () => {
-        const address = server.address() as any
-        const port = address.port
-
-        http.get(`http://localhost:${port}/api/users/profile`, (res) => {
-          let data = ''
-          res.on('data', (chunk) => {
-            data += chunk
-          })
-          res.on('end', () => {
-            expect(res.statusCode).toBe(200)
-            expect(JSON.parse(data)).toEqual({ message: 'User profile' })
-            server.close()
-            done()
-          })
-        })
-      })
+      const response = await app.inject({ method: 'GET', url: '/api/users/profile' })
+      expect(response.statusCode).toBe(200)
+      expect(JSON.parse(response.payload)).toEqual({ message: 'User profile' })
     })
 
-    it('Router dynamic parameters', (done) => {
+    it('Router dynamic parameters', async () => {
       const app = numflow()
       const apiRouter = numflow.Router()
 
@@ -386,26 +219,12 @@ describe('Router', () => {
 
       app.use('/api', apiRouter)
 
-      const server = app.listen(0, () => {
-        const address = server.address() as any
-        const port = address.port
-
-        http.get(`http://localhost:${port}/api/users/123`, (res) => {
-          let data = ''
-          res.on('data', (chunk) => {
-            data += chunk
-          })
-          res.on('end', () => {
-            expect(res.statusCode).toBe(200)
-            expect(JSON.parse(data)).toEqual({ userId: '123' })
-            server.close()
-            done()
-          })
-        })
-      })
+      const response = await app.inject({ method: 'GET', url: '/api/users/123' })
+      expect(response.statusCode).toBe(200)
+      expect(JSON.parse(response.payload)).toEqual({ userId: '123' })
     })
 
-    it('should mount multiple Routers at different paths', (done) => {
+    it('should mount multiple Routers at different paths', async () => {
       const app = numflow()
       const usersRouter = numflow.Router()
       const postsRouter = numflow.Router()
@@ -425,34 +244,13 @@ describe('Router', () => {
       app.use('/users', usersRouter)
       app.use('/posts', postsRouter)
 
-      const server = app.listen(0, () => {
-        const address = server.address() as any
-        const port = address.port
+      const usersResponse = await app.inject({ method: 'GET', url: '/users' })
+      expect(usersResponse.statusCode).toBe(200)
+      expect(JSON.parse(usersResponse.payload)).toEqual({ resource: 'users' })
 
-        http.get(`http://localhost:${port}/users`, (res) => {
-          let data = ''
-          res.on('data', (chunk) => {
-            data += chunk
-          })
-          res.on('end', () => {
-            expect(res.statusCode).toBe(200)
-            expect(JSON.parse(data)).toEqual({ resource: 'users' })
-
-            http.get(`http://localhost:${port}/posts`, (res) => {
-              let data = ''
-              res.on('data', (chunk) => {
-                data += chunk
-              })
-              res.on('end', () => {
-                expect(res.statusCode).toBe(200)
-                expect(JSON.parse(data)).toEqual({ resource: 'posts' })
-                server.close()
-                done()
-              })
-            })
-          })
-        })
-      })
+      const postsResponse = await app.inject({ method: 'GET', url: '/posts' })
+      expect(postsResponse.statusCode).toBe(200)
+      expect(JSON.parse(postsResponse.payload)).toEqual({ resource: 'posts' })
     })
   })
 

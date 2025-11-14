@@ -4,7 +4,7 @@ A step-by-step guide to getting started with the Numflow framework.
 
 > **Note**: This document includes only currently implemented features and will be updated as new features are added.
 >
-> **Current Status**: Implementation Complete (res.download(), res.jsonp() added) ✅
+> **Current Status**: app.inject() testing guide added ✅
 
 ---
 
@@ -26,6 +26,7 @@ A step-by-step guide to getting started with the Numflow framework.
 - **[Project Structure](./project-structure.md)** - Structure patterns, Best Practices
 
 ### Development Environment
+- **[Testing](./testing.md)** ⚡ - Fast testing with app.inject()
 - **[Debug Mode](./debug-mode.md)** 🐛 - Feature debugging, Context tracking
 - **[TypeScript](./typescript.md)** - TypeScript configuration
 
@@ -66,4 +67,4 @@ app.listen(3000, () => {
 
 ---
 
-**Last Updated**: 2025-11-11 (Documentation consolidation)
+**Last Updated**: 2025-11-14 (app.inject() testing guide added)
