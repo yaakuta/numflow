@@ -92,6 +92,7 @@ export default [
       "node_modules/",
       "examples/",
       "benchmarks/",
+      "test/__fixtures__/", // Test fixtures (may include .mjs, .mts files)
       "*.config.js",
       "*.config.cjs",
       "*.config.mjs",

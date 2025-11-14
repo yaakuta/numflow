@@ -113,7 +113,16 @@ export default numflow
 // Ignored in TypeScript, only works in built JS
 if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
   // @ts-ignore - CommonJS compatibility
-  const exports = require('./errors/index.js')
+  import('./errors/index.js').then((exports) => {
+    // Export all error classes for CommonJS
+    // @ts-ignore - CommonJS compatibility
+    Object.keys(exports).forEach(key => {
+      // @ts-ignore - CommonJS compatibility
+      module.exports[key] = exports[key as keyof typeof exports]
+    })
+  }).catch(() => {
+    // Silently ignore errors in ESM environment
+  })
 
   // @ts-ignore - CommonJS compatibility
   module.exports = numflow
@@ -129,10 +138,4 @@ if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
   module.exports.retry = retry
   // @ts-ignore - CommonJS compatibility
   module.exports.Router = (options) => new Router(options)
-
-  // Export all error classes for CommonJS
-  // @ts-ignore - CommonJS compatibility
-  Object.keys(exports).forEach(key => {
-    module.exports[key] = exports[key]
-  })
 }

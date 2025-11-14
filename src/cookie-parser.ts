@@ -1,4 +1,5 @@
 import * as cookie from 'cookie'
+import * as crypto from 'crypto'
 import { RequestHandler } from './types/index.js'
 
 /**
@@ -145,7 +146,6 @@ function unsign(val: string, secret: string | string[]): string | false {
 function sign(val: string, secret: string): string {
   // Simple HMAC-like signing (for demonstration)
   // In production, use crypto.createHmac
-  const crypto = require('crypto')
   return crypto
     .createHmac('sha256', secret)
     .update(val)

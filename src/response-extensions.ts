@@ -625,10 +625,10 @@ export function extendResponse(res: ServerResponse): Response {
 
       switch (viewEngine) {
         case 'ejs': {
-          // Try to require ejs
+          // Try to import ejs
           let ejs: any
           try {
-            ejs = require('ejs')
+            ejs = await import('ejs')
           } catch (err) {
             throw new Error(
               'EJS template engine not found. Install it with: npm install ejs'
@@ -641,10 +641,10 @@ export function extendResponse(res: ServerResponse): Response {
         }
 
         case 'pug': {
-          // Try to require pug
+          // Try to import pug
           let pug: any
           try {
-            pug = require('pug')
+            pug = await import('pug')
           } catch (err) {
             throw new Error(
               'Pug template engine not found. Install it with: npm install pug'
@@ -658,10 +658,10 @@ export function extendResponse(res: ServerResponse): Response {
 
         case 'handlebars':
         case 'hbs': {
-          // Try to require handlebars
+          // Try to import handlebars
           let handlebars: any
           try {
-            handlebars = require('handlebars')
+            handlebars = await import('handlebars')
           } catch (err) {
             throw new Error(
               'Handlebars template engine not found. Install it with: npm install handlebars'

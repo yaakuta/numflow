@@ -86,7 +86,7 @@ export class Feature {
       if (fs.existsSync(stepsPath)) {
         const stepsDiscovery = new AutoDiscovery({
           directory: stepsPath,
-          pattern: /^\d+-.*\.(js|ts)$/,
+          pattern: /^\d+-.*\.(js|ts|mjs|mts)$/,
           allowDuplicates: false,
         })
 
@@ -102,7 +102,7 @@ export class Feature {
       if (fs.existsSync(asyncTasksPath)) {
         const asyncTasksDiscovery = new AutoDiscovery({
           directory: asyncTasksPath,
-          pattern: /.*\.(js|ts)$/,
+          pattern: /.*\.(js|ts|mjs|mts)$/,
           allowDuplicates: true,
         })
 

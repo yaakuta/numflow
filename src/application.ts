@@ -1058,7 +1058,7 @@ export class Application extends EventEmitter {
    * @returns Promise<Application>
    */
   private async _registerFeaturesAsync(directory: string, options?: any): Promise<this> {
-    const { scanFeatures } = require('./feature/feature-scanner.js')
+    const { scanFeatures } = await import('./feature/feature-scanner.js')
 
     // Scan Features (await for completion)
     const scannedFeatures = await scanFeatures(directory, options)

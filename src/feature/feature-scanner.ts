@@ -8,6 +8,7 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import { Feature } from './index.js'
+import { ConventionResolver } from './convention.js'
 
 export interface ScanOptions {
   /**
@@ -58,7 +59,7 @@ export class FeatureScanner {
   constructor(options: ScanOptions) {
     this.options = {
       directory: options.directory,
-      indexPatterns: options.indexPatterns || ['index.js', 'index.ts'],
+      indexPatterns: options.indexPatterns || ['index.js', 'index.ts', 'index.mjs', 'index.mts'],
       excludeDirs: options.excludeDirs || ['node_modules', '.git', 'dist', 'build'],
       debug: options.debug || false,
     }
@@ -107,7 +108,7 @@ export class FeatureScanner {
         const fullPath = path.join(dir, indexFile.name)
         this.log(`Found feature file: ${fullPath}`)
 
-        const feature = this.loadFeature(fullPath)
+        const feature = await this.loadFeature(fullPath)
 
         if (feature) {
           const relativePath = path.relative(baseDir, fullPath)
@@ -180,10 +181,10 @@ export class FeatureScanner {
    *
    * @private
    */
-  private loadFeature(filePath: string): Feature | null {
+  private async loadFeature(filePath: string): Promise<Feature | null> {
     try {
-      // Use Node.js require()
-      const module = require(filePath)
+      // Use dynamic import() for ESM/CommonJS compatibility
+      const module = await import(filePath)
 
       // Support module.exports or export default
       const feature = module.default || module
@@ -225,7 +226,6 @@ export class FeatureScanner {
     }
 
     // Check if it's an HTTP method with ConventionResolver
-    const { ConventionResolver } = require('./convention.js')
     if (!ConventionResolver.isHttpMethod(dirName)) {
       return false
     }
@@ -250,19 +250,16 @@ export class FeatureScanner {
    * @private
    */
   private createImplicitFeature(dir: string): Feature {
-    const { ConventionResolver } = require('./convention.js')
-    const { Feature: FeatureClass } = require('./index.js')
-
     // Infer Convention (use virtual index.js path)
     const virtualIndexPath = path.join(dir, 'index.js')
     const conventions = ConventionResolver.resolveConventions(virtualIndexPath, this.baseDir || undefined)
 
     // Create Feature with empty config (all inferred from Convention)
-    return new FeatureClass({
+    return new Feature({
       method: conventions.method,
       path: conventions.path,
-      steps: conventions.steps,
-      asyncTasks: conventions.asyncTasks,
+      steps: conventions.steps ?? undefined,
+      asyncTasks: conventions.asyncTasks ?? undefined,
     }, dir)
   }
 

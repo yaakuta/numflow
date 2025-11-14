@@ -42,10 +42,10 @@ export class AutoDiscovery {
     // 2. Scan files
     const files = fs.readdirSync(directory)
 
-    // 3. Pattern validation (.js or .ts files only)
+    // 3. Pattern validation (.js, .ts, .mjs, or .mts files only)
     const validFiles = files.filter(file => {
-      // Check .js or .ts extension
-      if (!/\.(js|ts)$/.test(file)) {
+      // Check .js, .ts, .mjs, or .mts extension
+      if (!/\.(js|ts|mjs|mts)$/.test(file)) {
         return false
       }
 
@@ -170,7 +170,12 @@ export class AutoDiscovery {
   private async loadStepFunction(filePath: string): Promise<StepFunction> {
     try {
       // Use dynamic import (ESM support)
-      const module = await import(filePath)
+      // For .mjs and .mts files, use Function constructor to force true dynamic import
+      // This prevents TypeScript from converting it to require() in CommonJS build
+      const isESM = filePath.endsWith('.mjs') || filePath.endsWith('.mts')
+      const module = isESM
+        ? await (new Function('p', 'return import(p)'))(filePath)
+        : await import(filePath)
 
       // Check default export or module.exports
       const fn = module.default || module
@@ -196,7 +201,12 @@ export class AutoDiscovery {
   private async loadAsyncTaskFunction(filePath: string): Promise<AsyncTaskFunction> {
     try {
       // Use dynamic import (ESM support)
-      const module = await import(filePath)
+      // For .mjs and .mts files, use Function constructor to force true dynamic import
+      // This prevents TypeScript from converting it to require() in CommonJS build
+      const isESM = filePath.endsWith('.mjs') || filePath.endsWith('.mts')
+      const module = isESM
+        ? await (new Function('p', 'return import(p)'))(filePath)
+        : await import(filePath)
 
       // Check default export or module.exports
       const fn = module.default || module
