@@ -647,6 +647,315 @@ module.exports = async (ctx, req, res) => {
 
 ---
 
+## 조기 Response 처리 (Early Response)
+
+Feature-First에서 **조기 Response**는 마지막 Step이 아닌 중간 Step(100, 200 등)에서 HTTP 응답을 보내는 것을 의미합니다. 이는 유효성 검사 실패, 권한 부족, 캐시 히트 등의 상황에서 유용합니다.
+
+### 🎯 핵심 동작 원리
+
+```
+Step 100 → Response 전송 → [Step 200, 300 건너뜀] → Async-tasks 실행 ✅
+```
+
+**중요한 규칙:**
+1. ✅ **Response를 보낸 Step 이후의 모든 Steps는 자동으로 건너뜁니다**
+2. ✅ **Async-tasks는 정상적으로 실행됩니다** (정상 종료로 간주)
+3. ✅ **`res.headersSent` 플래그로 자동 감지**
+
+### res.headersSent 메커니즘
+
+Numflow는 각 Step 실행 후 `res.headersSent`를 체크하여 응답이 전송되었는지 확인합니다.
+
+```typescript
+// 내부 동작 (src/feature/auto-executor.ts:108-112)
+await step.fn(context, req, res)
+
+// Response가 이미 전송되었는가?
+if (res.headersSent) {
+  // 나머지 Steps 건너뛰고 종료
+  return context  // ← 정상 종료로 간주 → Async-tasks 실행됨
+}
+```
+
+### 실전 예제
+
+#### 예제 1: 유효성 검사 실패 (400 Bad Request)
+
+```javascript
+// steps/100-validate.js
+module.exports = async (ctx, req, res) => {
+  if (!req.body.userId) {
+    // 조기 Response!
+    res.status(400).json({ error: 'userId required' })
+    return  // ⚠️ return 필수!
+  }
+  ctx.validated = true
+}
+
+// steps/200-create-order.js - 실행 안 됨 ❌
+module.exports = async (ctx, req, res) => {
+  // 위에서 400 응답을 보냈으므로 여기는 실행되지 않음
+  const order = await db.orders.create(req.body)
+  ctx.order = order
+}
+
+// steps/300-response.js - 실행 안 됨 ❌
+module.exports = async (ctx, req, res) => {
+  res.json({ orderId: ctx.order.id })
+}
+
+// async-tasks/send-email.js - 실행 안 됨 ❌
+module.exports = async (ctx) => {
+  // 에러 응답이므로 Async-tasks 실행 안 됨
+  await sendEmail(ctx.order)
+}
+```
+
+**결과:**
+- Step 100만 실행
+- 클라이언트는 `400 Bad Request` 응답 받음
+- Steps 200, 300 건너뜀
+- **Async-tasks 실행 안 됨** (에러 응답이므로)
+
+#### 예제 2: 캐시 히트 (200 OK)
+
+```javascript
+// steps/100-check-cache.js
+module.exports = async (ctx, req, res) => {
+  const cached = await cache.get(`user:${req.params.id}`)
+
+  if (cached) {
+    // 캐시가 있으면 조기 Response!
+    res.json(cached)  // 200 OK
+    return  // ⚠️ return 필수!
+  }
+
+  // 캐시가 없으면 다음 Step 진행
+}
+
+// steps/200-fetch-from-db.js - 캐시 히트 시 실행 안 됨 ❌
+module.exports = async (ctx, req, res) => {
+  const user = await db.users.findById(req.params.id)
+  ctx.user = user
+}
+
+// steps/300-response.js - 캐시 히트 시 실행 안 됨 ❌
+module.exports = async (ctx, req, res) => {
+  res.json(ctx.user)
+}
+
+// async-tasks/log-access.js - 캐시 히트 시에도 실행됨 ✅
+module.exports = async (ctx) => {
+  // 정상 응답(200 OK)이므로 Async-tasks 실행됨!
+  await logService.write({
+    action: 'user_viewed',
+    userId: ctx.userId,
+    timestamp: new Date()
+  })
+}
+```
+
+**결과 (캐시 히트 시):**
+- Step 100만 실행
+- 클라이언트는 `200 OK` + 캐시 데이터 받음
+- Steps 200, 300 건너뜀
+- **Async-tasks 실행됨 ✅** (정상 응답이므로)
+
+#### 예제 3: 권한 체크 실패 (403 Forbidden)
+
+```javascript
+// steps/100-check-permission.js
+module.exports = async (ctx, req, res) => {
+  const user = await getUser(req.userId)
+
+  if (!user.isAdmin) {
+    // 권한 없음 → 조기 Response!
+    res.status(403).json({ error: 'Admin only' })
+    return  // ⚠️ return 필수!
+  }
+
+  ctx.user = user
+}
+
+// steps/200-delete-user.js - 권한 없으면 실행 안 됨 ❌
+module.exports = async (ctx, req, res) => {
+  await db.users.delete(req.params.id)
+  ctx.deleted = true
+}
+
+// steps/300-response.js - 권한 없으면 실행 안 됨 ❌
+module.exports = async (ctx, req, res) => {
+  res.json({ success: true })
+}
+
+// async-tasks/send-notification.js - 실행 안 됨 ❌
+module.exports = async (ctx) => {
+  // 에러 응답이므로 Async-tasks 실행 안 됨
+  await notify('User deleted')
+}
+```
+
+**결과 (권한 없을 시):**
+- Step 100만 실행
+- 클라이언트는 `403 Forbidden` 응답 받음
+- Steps 200, 300 건너뜀
+- **Async-tasks 실행 안 됨** (에러 응답이므로)
+
+### 📊 조기 Response vs 에러 발생 비교
+
+| 상황 | 코드 | 나머지 Steps | Async-tasks |
+|------|------|-------------|-------------|
+| **조기 정상 응답 (200)** | `res.json(...); return` | ❌ 건너뜀 | ✅ **실행됨** |
+| **조기 에러 응답 (4xx/5xx)** | `res.status(400).json(...); return` | ❌ 건너뜀 | ❌ 실행 안 됨 |
+| **throw Error** | `throw new Error(...)` | ❌ 건너뜀 | ❌ 실행 안 됨 |
+| **정상 흐름** | 모든 Steps 실행 | ✅ 모두 실행 | ✅ 실행됨 |
+
+### ⚠️ 주의사항
+
+#### 1. return 필수
+
+```javascript
+// ❌ 잘못된 예: return 없음
+module.exports = async (ctx, req, res) => {
+  if (cached) {
+    res.json(cached)  // ← return 없음!
+    // 함수가 계속 실행됨! 다음 Step도 실행 시도!
+  }
+  ctx.data = await fetchData()
+}
+
+// ✅ 올바른 예: return 있음
+module.exports = async (ctx, req, res) => {
+  if (cached) {
+    res.json(cached)
+    return  // ← return 필수!
+  }
+  ctx.data = await fetchData()
+}
+```
+
+#### 2. Async-tasks는 응답 상태 코드를 모름
+
+Async-tasks는 응답이 성공(200)인지 실패(4xx/5xx)인지 **구분하지 못합니다**. 조건부 실행이 필요하다면 Context에 플래그를 저장하세요.
+
+```javascript
+// steps/100-validate.js
+module.exports = async (ctx, req, res) => {
+  if (!req.body.userId) {
+    ctx.isError = true  // ← 플래그 설정
+    res.status(400).json({ error: 'userId required' })
+    return
+  }
+  ctx.validated = true
+}
+
+// async-tasks/send-email.js
+module.exports = async (ctx) => {
+  // 에러 응답 시 이메일 보내지 않기
+  if (ctx.isError) {
+    console.log('Error response, skipping email')
+    return
+  }
+
+  await sendEmail(ctx.order)
+}
+```
+
+#### 3. 조기 Response 후 Context는 불완전할 수 있음
+
+Step 100에서 응답을 보내면 Steps 200, 300이 실행되지 않으므로 그곳에서 설정할 Context 데이터가 없습니다.
+
+```javascript
+// steps/100-check-cache.js
+module.exports = async (ctx, req, res) => {
+  const cached = await cache.get(key)
+  if (cached) {
+    res.json(cached)
+    return  // ← Step 200 실행 안 됨
+  }
+}
+
+// steps/200-create-order.js - 실행 안 됨
+module.exports = async (ctx, req, res) => {
+  ctx.order = await createOrder()  // ← 캐시 히트 시 설정 안 됨
+}
+
+// async-tasks/send-email.js
+module.exports = async (ctx) => {
+  // ⚠️ ctx.order가 undefined일 수 있음!
+  if (!ctx.order) {
+    console.log('No order created, skipping email')
+    return
+  }
+
+  await sendEmail(ctx.order)
+}
+```
+
+### 🎯 Best Practices
+
+#### 1. 조기 Response는 빠른 실패(Fail-Fast)에 사용
+
+```javascript
+// ✅ 좋은 예: 유효성 검사 실패 시 즉시 응답
+module.exports = async (ctx, req, res) => {
+  if (!req.body.email) {
+    res.status(400).json({ error: 'Email required' })
+    return
+  }
+  // 나머지 로직
+}
+```
+
+#### 2. 성능 최적화에 활용
+
+```javascript
+// ✅ 좋은 예: 캐시 히트 시 불필요한 DB 조회 건너뛰기
+module.exports = async (ctx, req, res) => {
+  const cached = await cache.get(key)
+  if (cached) {
+    res.json(cached)  // 빠른 응답!
+    return
+  }
+  // 캐시 미스 시에만 DB 조회
+}
+```
+
+#### 3. Async-tasks에서 Context 검증
+
+```javascript
+// ✅ 좋은 예: 필요한 데이터가 있는지 확인
+module.exports = async (ctx) => {
+  if (!ctx.order) {
+    console.log('No order in context, skipping notification')
+    return
+  }
+
+  await sendNotification(ctx.order)
+}
+```
+
+### 🔍 디버깅 팁
+
+조기 Response가 의도대로 동작하는지 확인하려면 Debug Mode를 활성화하세요:
+
+```bash
+DEBUG=numflow:* npm start
+```
+
+로그 출력 예시:
+```
+[Feature] POST /api/orders
+  [Step 100] validate (2ms) ✓
+    └─ Context: (no changes)
+  [Step 100] Early response detected (res.headersSent = true)
+  [Step 200] Skipped (early response)
+  [Step 300] Skipped (early response)
+  [AsyncTask] send-email ✓ (150ms)
+```
+
+---
+
 ## Context
 
 ### Context 객체

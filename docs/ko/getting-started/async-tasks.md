@@ -219,6 +219,10 @@ module.exports = response
 
 #### 2. 조기 응답 (Early Return)
 
+조기 응답은 마지막 Step이 아닌 중간 Step에서 HTTP 응답을 보내는 것을 의미합니다. **응답의 성공/실패 여부에 따라 AsyncTask 실행 여부가 결정됩니다.**
+
+##### 2-1. 조기 에러 응답 (4xx/5xx) → AsyncTask 실행 안 됨 ❌
+
 ```javascript
 // steps/100-validate.js
 async function validate(ctx, req, res) {
@@ -234,7 +238,7 @@ module.exports = validate
 ```
 
 ```javascript
-// steps/200-create-order.js - 실행 안 됨
+// steps/200-create-order.js - 실행 안 됨 ❌
 async function createOrder(ctx, req, res) {
   // 위에서 에러 응답 보냈으면 여기는 실행 안 됨
   const order = await db.orders.create(req.body)
@@ -244,12 +248,71 @@ async function createOrder(ctx, req, res) {
 module.exports = createOrder
 ```
 
+```javascript
+// async-tasks/send-email.js - 실행 안 됨 ❌
+async function sendEmail(ctx) {
+  // 에러 응답이므로 AsyncTask 실행 안 됨
+  await emailService.send(...)
+}
+module.exports = sendEmail
+```
+
 **결과**: ❌ AsyncTask 실행 안 됨 (에러 응답)
 
-**중요**: 
+##### 2-2. 조기 정상 응답 (200 OK) → AsyncTask 실행됨 ✅
+
+```javascript
+// steps/100-check-cache.js
+async function checkCache(ctx, req, res) {
+  const cached = await cache.get(`product:${req.params.id}`)
+
+  if (cached) {
+    // 캐시 히트 → 정상 응답!
+    res.json(cached)  // 200 OK
+    return  // ⚠️ return 필수!
+  }
+
+  // 캐시 미스 → 다음 Step 진행
+}
+module.exports = checkCache
+```
+
+```javascript
+// steps/200-fetch-from-db.js - 캐시 히트 시 실행 안 됨 ❌
+async function fetchFromDB(ctx, req, res) {
+  // 캐시 히트했으면 여기는 실행 안 됨
+  const product = await db.products.findById(req.params.id)
+  ctx.product = product
+  res.json(product)
+}
+module.exports = fetchFromDB
+```
+
+```javascript
+// async-tasks/log-access.js - 캐시 히트 시에도 실행됨 ✅
+async function logAccess(ctx) {
+  // 정상 응답(200 OK)이므로 AsyncTask 실행됨!
+  await logService.write({
+    action: 'product_viewed',
+    productId: ctx.productId,
+    fromCache: true,
+    timestamp: new Date()
+  })
+}
+module.exports = logAccess
+```
+
+**결과**: ✅ AsyncTask 실행됨 (정상 응답)
+
+**핵심 차이:**
+- **에러 응답 (4xx/5xx)**: AsyncTask 실행 안 됨 ❌
+- **정상 응답 (200 OK)**: AsyncTask 실행됨 ✅
+
+**중요**:
 - `res.json()`, `res.send()`, `res.status().json()` 등을 호출하면 **즉시 해당 Step 종료**
 - 응답 전송 후 `return`을 명시적으로 써야 다음 Step이 실행 안 됨
 - 응답 전송 후에는 나머지 Steps는 건너뛰고 **AsyncTask 실행 여부 결정**
+- **내부 메커니즘**: `res.headersSent` 플래그로 응답 전송 여부 감지 (src/feature/auto-executor.ts:108-112)
 
 ### ❌ AsyncTask가 실행되지 않는 경우
 
@@ -322,10 +385,14 @@ module.exports = createOrder
 
 | Step 상태 | 응답 전송 | AsyncTask 실행 |
 |----------|---------|--------------|
-| ✅ 모두 성공 | ✅ 전송함 | ✅ **실행됨** |
+| ✅ 모두 성공 | ✅ 전송함 (마지막 Step) | ✅ **실행됨** |
+| ✅ 조기 정상 응답 (200 OK) | ✅ 전송함 (중간 Step) | ✅ **실행됨** ⭐ |
+| ✅ 조기 에러 응답 (4xx/5xx) | ✅ 전송함 (중간 Step) | ❌ 실행 안 됨 |
 | ✅ 모두 성공 | ❌ 안 함 | ❌ 에러 (응답 안 보냄) |
 | ❌ throw Error | - | ❌ 실행 안 됨 |
 | ❌ 예외 발생 | - | ❌ 실행 안 됨 |
+
+**⭐ 중요**: 조기 정상 응답(200 OK)은 "정상 종료"로 간주되어 AsyncTask가 실행됩니다. 캐시 히트, 조건부 빠른 응답 등에 활용할 수 있습니다.
 
 ---
 

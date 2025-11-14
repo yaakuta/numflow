@@ -380,6 +380,72 @@ module.exports = sendEmail
 
 ---
 
+## Early Response Handling
+
+When an HTTP response is sent from a middle step, remaining steps are automatically skipped.
+
+### Mechanism
+
+```typescript
+// Internal behavior (src/feature/auto-executor.ts:108-112)
+await step.fn(context, req, res)
+
+if (res.headersSent) {
+  return context  // Treated as successful completion
+}
+```
+
+After each step execution, Numflow checks the `res.headersSent` flag to detect if a response has already been sent.
+
+### Async-tasks Execution Rules
+
+| Response Status | Remaining Steps | Async-tasks |
+|----------------|----------------|-------------|
+| **200 OK** (early) | ❌ Skipped | ✅ **Execute** |
+| **4xx/5xx** (early) | ❌ Skipped | ❌ Do NOT execute |
+| **throw Error** | ❌ Skipped | ❌ Do NOT execute |
+
+**Key Point**: Early success response (200 OK) is treated as "successful completion" → Async-tasks execute.
+
+### Examples
+
+**Success Response (200 OK):**
+```javascript
+// steps/100-check-cache.js
+module.exports = async (ctx, req, res) => {
+  const cached = await cache.get(key)
+
+  if (cached) {
+    res.json(cached)  // 200 OK → Steps 200, 300 skipped → Async-tasks execute ✅
+    return  // ⚠️ return is required!
+  }
+
+  // Cache miss → Proceed to next step
+}
+```
+
+**Error Response (4xx/5xx):**
+```javascript
+// steps/100-validate.js
+module.exports = async (ctx, req, res) => {
+  if (!req.body.userId) {
+    res.status(400).json({ error: 'Invalid' })  // 400 → Async-tasks do NOT execute ❌
+    return  // ⚠️ return is required!
+  }
+
+  // Validation passed → Proceed to next step
+}
+```
+
+**Important**: Always include `return` statement after sending response. Without `return`, the function continues executing which may cause unintended behavior.
+
+### Reference
+
+- [Feature-First: Early Response Handling](../getting-started/feature-first.md#early-response-handling) - Detailed guide and best practices
+- [AsyncTasks: Execution Conditions](../getting-started/async-tasks.md#async-task-execution-conditions-important) - Detailed async-task execution conditions
+
+---
+
 ## Registration Methods
 
 ### Feature Registration - app.registerFeatures()

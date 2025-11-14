@@ -620,6 +620,315 @@ Now all steps can access `ctx.db`, `ctx.user`, and `ctx.logger`.
 
 ---
 
+## Early Response Handling
+
+Feature-First supports **early response** - sending an HTTP response from a middle step (100, 200, etc.) instead of the final step. This is useful for validation failures, permission checks, cache hits, etc.
+
+### 🎯 Core Mechanism
+
+```
+Step 100 → Send Response → [Skip Steps 200, 300] → Execute Async-tasks ✅
+```
+
+**Important Rules:**
+1. ✅ **All steps after sending response are automatically skipped**
+2. ✅ **Async-tasks execute normally** (treated as successful completion)
+3. ✅ **`res.headersSent` flag auto-detects response**
+
+### res.headersSent Mechanism
+
+Numflow checks `res.headersSent` after each step execution to detect if response was sent.
+
+```typescript
+// Internal behavior (src/feature/auto-executor.ts:108-112)
+await step.fn(context, req, res)
+
+// Was response already sent?
+if (res.headersSent) {
+  // Skip remaining steps and exit
+  return context  // ← Treated as successful → Async-tasks execute
+}
+```
+
+### Real-World Examples
+
+#### Example 1: Validation Failure (400 Bad Request)
+
+```javascript
+// steps/100-validate.js
+module.exports = async (ctx, req, res) => {
+  if (!req.body.userId) {
+    // Early response!
+    res.status(400).json({ error: 'userId required' })
+    return  // ⚠️ return is required!
+  }
+  ctx.validated = true
+}
+
+// steps/200-create-order.js - NOT executed ❌
+module.exports = async (ctx, req, res) => {
+  // This step won't run since 400 response was sent
+  const order = await db.orders.create(req.body)
+  ctx.order = order
+}
+
+// steps/300-response.js - NOT executed ❌
+module.exports = async (ctx, req, res) => {
+  res.json({ orderId: ctx.order.id })
+}
+
+// async-tasks/send-email.js - NOT executed ❌
+module.exports = async (ctx) => {
+  // Error response → Async-tasks do NOT execute
+  await sendEmail(ctx.order)
+}
+```
+
+**Result:**
+- Only Step 100 executes
+- Client receives `400 Bad Request` response
+- Steps 200, 300 skipped
+- **Async-tasks do NOT execute** (error response)
+
+#### Example 2: Cache Hit (200 OK)
+
+```javascript
+// steps/100-check-cache.js
+module.exports = async (ctx, req, res) => {
+  const cached = await cache.get(`user:${req.params.id}`)
+
+  if (cached) {
+    // Cache hit → Early response!
+    res.json(cached)  // 200 OK
+    return  // ⚠️ return is required!
+  }
+
+  // Cache miss → Proceed to next step
+}
+
+// steps/200-fetch-from-db.js - Skipped on cache hit ❌
+module.exports = async (ctx, req, res) => {
+  const user = await db.users.findById(req.params.id)
+  ctx.user = user
+}
+
+// steps/300-response.js - Skipped on cache hit ❌
+module.exports = async (ctx, req, res) => {
+  res.json(ctx.user)
+}
+
+// async-tasks/log-access.js - Executes even on cache hit ✅
+module.exports = async (ctx) => {
+  // Successful response (200 OK) → Async-tasks execute!
+  await logService.write({
+    action: 'user_viewed',
+    userId: ctx.userId,
+    timestamp: new Date()
+  })
+}
+```
+
+**Result (on cache hit):**
+- Only Step 100 executes
+- Client receives `200 OK` + cached data
+- Steps 200, 300 skipped
+- **Async-tasks execute ✅** (successful response)
+
+#### Example 3: Permission Check Failure (403 Forbidden)
+
+```javascript
+// steps/100-check-permission.js
+module.exports = async (ctx, req, res) => {
+  const user = await getUser(req.userId)
+
+  if (!user.isAdmin) {
+    // Permission denied → Early response!
+    res.status(403).json({ error: 'Admin only' })
+    return  // ⚠️ return is required!
+  }
+
+  ctx.user = user
+}
+
+// steps/200-delete-user.js - NOT executed if permission denied ❌
+module.exports = async (ctx, req, res) => {
+  await db.users.delete(req.params.id)
+  ctx.deleted = true
+}
+
+// steps/300-response.js - NOT executed if permission denied ❌
+module.exports = async (ctx, req, res) => {
+  res.json({ success: true })
+}
+
+// async-tasks/send-notification.js - NOT executed ❌
+module.exports = async (ctx) => {
+  // Error response → Async-tasks do NOT execute
+  await notify('User deleted')
+}
+```
+
+**Result (permission denied):**
+- Only Step 100 executes
+- Client receives `403 Forbidden` response
+- Steps 200, 300 skipped
+- **Async-tasks do NOT execute** (error response)
+
+### 📊 Early Response vs Error Comparison
+
+| Situation | Code | Remaining Steps | Async-tasks |
+|-----------|------|----------------|-------------|
+| **Early Success Response (200)** | `res.json(...); return` | ❌ Skipped | ✅ **Execute** |
+| **Early Error Response (4xx/5xx)** | `res.status(400).json(...); return` | ❌ Skipped | ❌ Do NOT execute |
+| **throw Error** | `throw new Error(...)` | ❌ Skipped | ❌ Do NOT execute |
+| **Normal Flow** | All steps execute | ✅ All execute | ✅ Execute |
+
+### ⚠️ Important Notes
+
+#### 1. Return Statement is Required
+
+```javascript
+// ❌ WRONG: No return statement
+module.exports = async (ctx, req, res) => {
+  if (cached) {
+    res.json(cached)  // ← No return!
+    // Function continues! Next step also attempts to execute!
+  }
+  ctx.data = await fetchData()
+}
+
+// ✅ CORRECT: Return statement present
+module.exports = async (ctx, req, res) => {
+  if (cached) {
+    res.json(cached)
+    return  // ← return is required!
+  }
+  ctx.data = await fetchData()
+}
+```
+
+#### 2. Async-tasks Don't Know Response Status Code
+
+Async-tasks cannot distinguish between success (200) and failure (4xx/5xx) responses. If conditional execution is needed, store a flag in Context.
+
+```javascript
+// steps/100-validate.js
+module.exports = async (ctx, req, res) => {
+  if (!req.body.userId) {
+    ctx.isError = true  // ← Set flag
+    res.status(400).json({ error: 'userId required' })
+    return
+  }
+  ctx.validated = true
+}
+
+// async-tasks/send-email.js
+module.exports = async (ctx) => {
+  // Skip email on error response
+  if (ctx.isError) {
+    console.log('Error response, skipping email')
+    return
+  }
+
+  await sendEmail(ctx.order)
+}
+```
+
+#### 3. Context May Be Incomplete After Early Response
+
+If Step 100 sends response, Steps 200 and 300 don't execute, so Context data set in those steps will be missing.
+
+```javascript
+// steps/100-check-cache.js
+module.exports = async (ctx, req, res) => {
+  const cached = await cache.get(key)
+  if (cached) {
+    res.json(cached)
+    return  // ← Step 200 doesn't execute
+  }
+}
+
+// steps/200-create-order.js - Doesn't execute
+module.exports = async (ctx, req, res) => {
+  ctx.order = await createOrder()  // ← Not set on cache hit
+}
+
+// async-tasks/send-email.js
+module.exports = async (ctx) => {
+  // ⚠️ ctx.order may be undefined!
+  if (!ctx.order) {
+    console.log('No order created, skipping email')
+    return
+  }
+
+  await sendEmail(ctx.order)
+}
+```
+
+### 🎯 Best Practices
+
+#### 1. Use Early Response for Fast Failure
+
+```javascript
+// ✅ Good: Immediately respond on validation failure
+module.exports = async (ctx, req, res) => {
+  if (!req.body.email) {
+    res.status(400).json({ error: 'Email required' })
+    return
+  }
+  // Rest of logic
+}
+```
+
+#### 2. Use for Performance Optimization
+
+```javascript
+// ✅ Good: Skip unnecessary DB queries on cache hit
+module.exports = async (ctx, req, res) => {
+  const cached = await cache.get(key)
+  if (cached) {
+    res.json(cached)  // Fast response!
+    return
+  }
+  // Only query DB on cache miss
+}
+```
+
+#### 3. Validate Context in Async-tasks
+
+```javascript
+// ✅ Good: Check for required data
+module.exports = async (ctx) => {
+  if (!ctx.order) {
+    console.log('No order in context, skipping notification')
+    return
+  }
+
+  await sendNotification(ctx.order)
+}
+```
+
+### 🔍 Debugging Tips
+
+To verify early response works as intended, enable Debug Mode:
+
+```bash
+DEBUG=numflow:* npm start
+```
+
+Log output example:
+```
+[Feature] POST /api/orders
+  [Step 100] validate (2ms) ✓
+    └─ Context: (no changes)
+  [Step 100] Early response detected (res.headersSent = true)
+  [Step 200] Skipped (early response)
+  [Step 300] Skipped (early response)
+  [AsyncTask] send-email ✓ (150ms)
+```
+
+---
+
 ## Error Handling
 
 ### Automatic Error Catching

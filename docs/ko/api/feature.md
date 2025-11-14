@@ -268,6 +268,70 @@ export default validateOrder
 
 ---
 
+## 조기 Response 처리 (Early Response)
+
+중간 Step에서 HTTP 응답을 보내면 나머지 Steps는 자동으로 건너뜁니다.
+
+### 메커니즘
+
+```typescript
+// 내부 동작 (src/feature/auto-executor.ts:108-112)
+await step.fn(context, req, res)
+
+if (res.headersSent) {
+  return context  // 정상 종료로 간주
+}
+```
+
+각 Step 실행 후 `res.headersSent` 플래그를 체크하여 응답 전송 여부를 자동 감지합니다.
+
+### Async-tasks 실행 규칙
+
+| 응답 상태 | 나머지 Steps | Async-tasks |
+|----------|-------------|-------------|
+| **200 OK** (조기) | ❌ 건너뜀 | ✅ **실행됨** |
+| **4xx/5xx** (조기) | ❌ 건너뜀 | ❌ 실행 안 됨 |
+| **throw Error** | ❌ 건너뜀 | ❌ 실행 안 됨 |
+
+**핵심**: 조기 정상 응답(200 OK)은 "정상 종료"로 간주되어 Async-tasks가 실행됩니다.
+
+### 예제
+
+```javascript
+// steps/100-check-cache.js
+module.exports = async (ctx, req, res) => {
+  const cached = await cache.get(key)
+
+  if (cached) {
+    res.json(cached)  // 200 OK → Steps 200, 300 건너뜀 → Async-tasks 실행됨 ✅
+    return  // ⚠️ return 필수!
+  }
+
+  // 캐시 미스 → 다음 Step 진행
+}
+```
+
+```javascript
+// steps/100-validate.js
+module.exports = async (ctx, req, res) => {
+  if (!req.body.userId) {
+    res.status(400).json({ error: 'Invalid' })  // 400 → Async-tasks 실행 안 됨 ❌
+    return  // ⚠️ return 필수!
+  }
+
+  // 검증 통과 → 다음 Step 진행
+}
+```
+
+**주의**: `res.json()` 호출 후 반드시 `return`을 명시해야 합니다. `return` 없이 함수가 계속 실행되면 의도치 않은 동작이 발생할 수 있습니다.
+
+### 참고 문서
+
+- [Feature-First: 조기 Response 처리](../getting-started/feature-first.md#조기-response-처리-early-response) - 상세 가이드 및 Best Practices
+- [AsyncTasks: 실행 조건](../getting-started/async-tasks.md#asynctask-실행-조건-중요) - Async-tasks 실행 조건 상세
+
+---
+
 ## Context 객체
 
 모든 step이 공유하는 순수 비즈니스 데이터 저장소입니다.

@@ -313,6 +313,220 @@ Time: 2080ms  | [Background] Async Task 2 complete ✓
 
 ---
 
+## Async Task Execution Conditions (Important)
+
+Async tasks execute **only after successful feature completion**. Understanding execution conditions is crucial for predictable behavior.
+
+### When DO Async Tasks Execute?
+
+| Step Status | Response Sent | Async Tasks Execute |
+|-------------|--------------|-------------------|
+| ✅ All succeed | ✅ Sent (last step) | ✅ **Execute** |
+| ✅ Early success response (200 OK) | ✅ Sent (middle step) | ✅ **Execute** ⭐ |
+| ❌ Early error response (4xx/5xx) | ✅ Sent (middle step) | ❌ Do NOT execute |
+| ✅ All succeed | ❌ Not sent | ❌ Error (no response sent) |
+| ❌ throw Error | - | ❌ Do NOT execute |
+| ❌ Exception occurred | - | ❌ Do NOT execute |
+
+### Case 1: Early Error Response (4xx/5xx) → Async Tasks Do NOT Execute ❌
+
+When sending an error response (400, 401, 403, 404, 500, etc.) in a middle step:
+
+```javascript
+// steps/100-validate.js
+module.exports = async (ctx, req, res) => {
+  if (!req.body.productId) {
+    // ⚠️ Error response → Async tasks will NOT execute
+    res.status(400).json({ error: 'productId required' })
+    return  // ⚠️ return is required!
+  }
+  ctx.validated = true
+}
+
+// steps/200-create-order.js - Skipped
+module.exports = async (ctx, req, res) => {
+  const order = await db.orders.create(req.body)
+  ctx.order = order
+}
+
+// async-tasks/send-email.js - ❌ Does NOT execute (error response)
+module.exports = async (ctx) => {
+  await emailService.send({
+    to: ctx.order.userEmail,
+    subject: 'Order confirmed'
+  })
+}
+```
+
+**Result:**
+- Step 100 executes → Sends 400 error response
+- Steps 200+ skipped
+- **Async tasks do NOT execute** ❌
+- Client receives error response immediately
+
+### Case 2: Early Success Response (200 OK) → Async Tasks Execute ✅
+
+When sending a successful response (200, 201, etc.) in a middle step, async tasks **still execute**:
+
+```javascript
+// steps/100-check-cache.js
+module.exports = async (ctx, req, res) => {
+  const cached = await cache.get(`product:${req.params.id}`)
+
+  if (cached) {
+    // ✅ Success response → Async tasks WILL execute
+    res.json(cached)  // 200 OK
+    return  // ⚠️ return is required!
+  }
+
+  // Cache miss → Continue to next step
+}
+
+// steps/200-fetch-from-db.js - Skipped on cache hit
+module.exports = async (ctx, req, res) => {
+  const product = await db.products.findById(req.params.id)
+  ctx.product = product
+  res.json(product)
+}
+
+// async-tasks/log-access.js - ✅ Executes even on cache hit
+module.exports = async (ctx) => {
+  // Successful response (200 OK) → Async tasks execute!
+  await logService.write({
+    action: 'product_viewed',
+    productId: req.params.id,
+    timestamp: new Date()
+  })
+}
+```
+
+**Result:**
+- Step 100 executes → Sends 200 OK response (cache hit)
+- Steps 200+ skipped
+- **Async tasks execute normally** ✅ (treated as successful completion)
+- Client receives cached data immediately
+
+### Why the Difference?
+
+Numflow treats **successful early responses (200 OK)** as "successful feature completion":
+
+```typescript
+// Internal behavior (src/feature/index.ts)
+const result = await executor.execute()
+
+// Success response → Schedule async tasks
+if (result.success && this.asyncTasks.length > 0) {
+  scheduler.schedule()  // ✅ Execute async tasks
+}
+
+// Error response → Don't schedule async tasks
+// (result.success === false)
+```
+
+**The key distinction:**
+- 200 OK = Feature succeeded (just finished early) → Async tasks run ✅
+- 4xx/5xx = Feature failed → Async tasks don't run ❌
+
+### How to Handle Conditional Execution
+
+If you need conditional logic in async tasks, use context flags:
+
+```javascript
+// steps/100-validate.js
+module.exports = async (ctx, req, res) => {
+  if (!req.body.productId) {
+    ctx.isError = true  // ← Set flag
+    res.status(400).json({ error: 'productId required' })
+    return
+  }
+  ctx.validated = true
+}
+
+// async-tasks/send-email.js
+module.exports = async (ctx) => {
+  // Skip email on error response
+  if (ctx.isError) {
+    console.log('Error response, skipping email')
+    return
+  }
+
+  await emailService.send({
+    to: ctx.order.userEmail,
+    subject: 'Order confirmed'
+  })
+}
+```
+
+### Summary Table
+
+| Response Type | HTTP Status | Remaining Steps | Async Tasks |
+|--------------|-------------|----------------|-------------|
+| **Success (normal)** | 200-299 (last step) | ✅ All executed | ✅ **Execute** |
+| **Success (early)** | 200-299 (middle step) | ❌ Skipped | ✅ **Execute** ⭐ |
+| **Error (early)** | 400-599 (middle step) | ❌ Skipped | ❌ Do NOT execute |
+| **throw Error** | - | ❌ Stopped | ❌ Do NOT execute |
+| **No response** | - | ✅ All executed | ❌ Error thrown |
+
+### Real-World Scenarios
+
+**Scenario 1: API Rate Limiting**
+```javascript
+// steps/100-check-rate-limit.js
+module.exports = async (ctx, req, res) => {
+  const limit = await rateLimiter.check(req.ip)
+
+  if (limit.exceeded) {
+    // Error response → No analytics logged
+    res.status(429).json({ error: 'Rate limit exceeded' })
+    return
+  }
+}
+
+// async-tasks/log-analytics.js
+// ✅ Only logs successful requests (not rate-limited ones)
+module.exports = async (ctx) => {
+  await analytics.track('api_request', { userId: ctx.userId })
+}
+```
+
+**Scenario 2: Cache Optimization**
+```javascript
+// steps/100-check-cache.js
+module.exports = async (ctx, req, res) => {
+  const cached = await cache.get(req.url)
+
+  if (cached) {
+    // Success response → Analytics still logged
+    res.json(cached)  // 200 OK
+    return
+  }
+}
+
+// async-tasks/log-analytics.js
+// ✅ Logs both cache hits and misses
+module.exports = async (ctx) => {
+  await analytics.track('api_request', {
+    userId: ctx.userId,
+    cacheHit: !!cached
+  })
+}
+```
+
+### Best Practice
+
+**✅ Use early success response (200 OK) when:**
+- Cache hit (still want to log analytics)
+- Partial success (some data available)
+- Fallback data served
+
+**✅ Use early error response (4xx/5xx) when:**
+- Validation failure
+- Authentication/Authorization failure
+- Resource not found
+- Don't want side effects to execute
+
+---
+
 ## Error Handling
 
 ### Default Behavior
