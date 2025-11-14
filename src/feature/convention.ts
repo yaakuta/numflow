@@ -266,6 +266,10 @@ export class ConventionResolver {
   /**
    * Get caller's file path
    *
+   * Supports both CommonJS and ESM:
+   * - CJS: Uses V8 stack trace API
+   * - ESM: Handles different stack structure
+   *
    * @returns Caller's absolute path
    */
   static getCallerPath(): string {
@@ -279,9 +283,28 @@ export class ConventionResolver {
 
       const stack = err.stack as unknown as NodeJS.CallSite[]
 
-      // First is this function, second is feature(), third is actual caller
-      if (stack.length > 2) {
-        callerFile = stack[2].getFileName() || ''
+      // Find the first user file (not node:internal, not numflow internals)
+      // ESM and CJS have different stack structures, so we iterate to find the caller
+      for (let i = 0; i < stack.length; i++) {
+        const fileName = stack[i].getFileName()
+
+        if (!fileName) continue
+
+        // Skip node internal modules
+        if (fileName.startsWith('node:')) continue
+
+        // Skip this file (convention.ts/convention.js)
+        if (fileName.includes('/convention.')) continue
+
+        // Skip numflow framework files (dist/*/feature/index.*)
+        // But NOT user's feature files!
+        if (fileName.includes('/dist/') && fileName.includes('/feature/') && fileName.includes('/index.')) {
+          continue
+        }
+
+        // Found the actual user file!
+        callerFile = fileName
+        break
       }
 
       return callerFile

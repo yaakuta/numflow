@@ -34,6 +34,7 @@
 
 import * as path from 'path'
 import * as fs from 'fs'
+import { fileURLToPath } from 'url'
 import { IncomingMessage, ServerResponse } from 'http'
 import {
   FeatureConfig,
@@ -353,7 +354,13 @@ export class Feature {
  */
 export function feature(config: FeatureConfig = {}): Feature {
   // Get caller's file path
-  const callerPath = ConventionResolver.getCallerPath()
+  let callerPath = ConventionResolver.getCallerPath()
+
+  // Convert file:// URL to filesystem path (ESM support)
+  if (callerPath.startsWith('file://')) {
+    callerPath = fileURLToPath(callerPath)
+  }
+
   let conventions: {
     method?: any
     path?: any
