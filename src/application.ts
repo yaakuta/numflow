@@ -956,7 +956,6 @@ export class Application extends EventEmitter {
     callback?: import('light-my-request').CallbackFunc
   ): Promise<import('light-my-request').Response> | void {
     // Lazy load light-my-request (performance optimization)
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const lightMyRequest = require('light-my-request')
 
     // Wait for Feature registration
