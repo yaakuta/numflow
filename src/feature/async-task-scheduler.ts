@@ -51,7 +51,7 @@ export class AsyncTaskScheduler {
       } catch (error) {
         // Log async task failures and continue
         this.logError(
-          `Async task "${task.name}" failed: ${error instanceof Error ? error.message : String(error)}`
+          `Async task "${task.name}" at ${task.path} failed: ${error instanceof Error ? error.message : String(error)}`
         )
       }
     }

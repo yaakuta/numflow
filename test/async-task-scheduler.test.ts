@@ -185,6 +185,41 @@ describe('Async Task Scheduler', () => {
   })
 
   describe('Error Isolation', () => {
+    it('should include task path in error log when async task fails', async () => {
+      // Temporarily change NODE_ENV to enable logging
+      const originalEnv = process.env.NODE_ENV
+      process.env.NODE_ENV = 'development'
+
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation()
+
+      const tasks: AsyncTaskInfo[] = [
+        {
+          name: 'send-email',
+          path: '/features/orders/@post/async-tasks/send-email.js',
+          fn: async (_ctx) => {
+            throw new Error('SMTP connection failed')
+          },
+        },
+      ]
+
+      const ctx: Context = {}
+      const scheduler = new AsyncTaskScheduler(tasks, ctx)
+      scheduler.schedule()
+
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      // Error log should include both task.name and task.path
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('send-email')
+      )
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('/features/orders/@post/async-tasks/send-email.js')
+      )
+
+      consoleErrorSpy.mockRestore()
+      process.env.NODE_ENV = originalEnv
+    })
+
     it('async task failure should not affect other tasks', async () => {
       const executed: string[] = []
 
