@@ -33,6 +33,15 @@ Numflow의 핵심 차별화 기능으로, **폴더 구조만으로** 복잡한 �
   - [에러 재시도 (Retry)](#에러-재시도-retry-)
   - [validation](#validation)
   - [contextInitializer](#contextinitializer)
+- [일반적인 패턴 (Common Patterns)](#일반적인-패턴-common-patterns)
+  - [트랜잭션 관리](#트랜잭션-관리)
+  - [로깅 및 모니터링](#로깅-및-모니터링)
+  - [인증 및 권한 부여](#인증-및-권한-부여)
+  - [리소스 정리 (Cleanup)](#리소스-정리-cleanup)
+  - [Rate Limiting](#rate-limiting)
+  - [입력 검증 (Input Validation)](#입력-검증-input-validation)
+  - [캐싱 (Caching)](#캐싱-caching)
+  - [요약](#요약)
 - [완전한 예제](#완전한-예제)
 - [디버깅 및 로그 제어](#디버깅-및-로그-제어)
   - [AutoExecutor 로그](#autoexecutor-로그)
@@ -1284,6 +1293,441 @@ contextInitializer: async (ctx, req, res) => {
   ctx.permissions = user.permissions
 }
 ```
+
+---
+
+## 일반적인 패턴 (Common Patterns)
+
+기존 라이프사이클 훅(contextInitializer, onError, middlewares)을 사용한 일반적인 사용 사례의 실용적인 해결 방법입니다.
+
+### 트랜잭션 관리
+
+`contextInitializer` + `onError` + 마지막 step을 사용하여 트랜잭션 라이프사이클을 관리합니다.
+
+**PostgreSQL 예제:**
+```javascript
+const numflow = require('numflow')
+
+module.exports = numflow.feature({
+  // 트랜잭션 시작
+  contextInitializer: async (ctx, req, res) => {
+    ctx.dbClient = await db.connect()
+    await ctx.dbClient.query('BEGIN')
+    ctx.transactionStarted = true
+  },
+
+  onError: async (error, ctx, req, res) => {
+    // 에러 시 롤백
+    if (ctx.transactionStarted && ctx.dbClient) {
+      await ctx.dbClient.query('ROLLBACK')
+      await ctx.dbClient.release()
+    }
+
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// 마지막 step에서 커밋
+// features/.../steps/900-respond.js
+module.exports = async (ctx, req, res) => {
+  // 트랜잭션 커밋
+  if (ctx.transactionStarted && ctx.dbClient) {
+    await ctx.dbClient.query('COMMIT')
+    await ctx.dbClient.release()
+  }
+
+  res.json({ success: true, order: ctx.order })
+}
+```
+
+**MongoDB 예제:**
+```javascript
+const numflow = require('numflow')
+
+module.exports = numflow.feature({
+  contextInitializer: async (ctx, req, res) => {
+    ctx.session = await mongoose.startSession()
+    ctx.session.startTransaction()
+  },
+
+  onError: async (error, ctx, req, res) => {
+    // 에러 시 롤백
+    if (ctx.session) {
+      await ctx.session.abortTransaction()
+      await ctx.session.endSession()
+    }
+
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// 마지막 step에서 커밋
+// features/.../steps/900-respond.js
+module.exports = async (ctx, req, res) => {
+  // 트랜잭션 커밋
+  if (ctx.session) {
+    await ctx.session.commitTransaction()
+    await ctx.session.endSession()
+  }
+
+  res.json({ success: true })
+}
+```
+
+**핵심 포인트:**
+- ✅ `contextInitializer`에서 트랜잭션 시작
+- ✅ `onError`에서 롤백
+- ✅ 마지막 step(예: `900-respond.js`)에서 커밋
+- ✅ 모든 step이 트랜잭션 범위 내에서 실행됨
+
+---
+
+### 로깅 및 모니터링
+
+요청/응답 로깅은 middlewares를 사용하고, 타이밍은 contextInitializer를 사용합니다.
+
+**미들웨어를 사용한 요청 로깅:**
+```javascript
+const numflow = require('numflow')
+
+// 로깅 미들웨어 생성
+function requestLogger(req, res, next) {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`)
+  next()
+}
+
+module.exports = numflow.feature({
+  middlewares: [requestLogger],
+
+  // ... 나머지 설정
+})
+```
+
+**성능 모니터링:**
+```javascript
+const numflow = require('numflow')
+
+module.exports = numflow.feature({
+  contextInitializer: (ctx, req, res) => {
+    // 타이머 시작
+    ctx.startTime = Date.now()
+    ctx.requestId = generateRequestId()
+  }
+})
+
+// 마지막 step에서 소요 시간 로깅
+// features/.../steps/900-respond.js
+module.exports = async (ctx, req, res) => {
+  const duration = Date.now() - ctx.startTime
+
+  console.log({
+    requestId: ctx.requestId,
+    method: req.method,
+    path: req.url,
+    duration: `${duration}ms`,
+    status: 200
+  })
+
+  res.json({ success: true })
+}
+```
+
+**구조화된 로깅:**
+```javascript
+const numflow = require('numflow')
+const logger = require('./logger') // Winston, Pino 등
+
+module.exports = numflow.feature({
+  contextInitializer: (ctx, req, res) => {
+    ctx.logger = logger.child({
+      requestId: generateRequestId(),
+      userId: req.user?.id,
+      path: req.url,
+      method: req.method
+    })
+
+    ctx.logger.info('Request started')
+  },
+
+  onError: async (error, ctx, req, res) => {
+    ctx.logger?.error('Request failed', { error: error.message })
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// step에서 ctx.logger 사용
+// features/.../steps/100-validate.js
+module.exports = async (ctx, req, res) => {
+  ctx.logger.info('Validating order')
+  // ... 검증 로직
+}
+```
+
+---
+
+### 인증 및 권한 부여
+
+인증은 middlewares를 사용하고, 사용자 데이터는 contextInitializer에서 처리합니다.
+
+**기본 인증:**
+```javascript
+const numflow = require('numflow')
+
+function authenticate(req, res, next) {
+  const token = req.headers.authorization?.replace('Bearer ', '')
+
+  if (!token) {
+    res.status(401).json({ error: 'Unauthorized' })
+    return
+  }
+
+  try {
+    req.user = verifyToken(token)
+    next()
+  } catch (error) {
+    res.status(401).json({ error: 'Invalid token' })
+  }
+}
+
+module.exports = numflow.feature({
+  middlewares: [authenticate],
+
+  contextInitializer: (ctx, req, res) => {
+    // 미들웨어에서 이미 인증된 사용자
+    ctx.userId = req.user.id
+    ctx.userRole = req.user.role
+    ctx.permissions = req.user.permissions
+  }
+})
+```
+
+**역할 기반 권한 부여:**
+```javascript
+const numflow = require('numflow')
+
+function requireRole(role) {
+  return (req, res, next) => {
+    if (!req.user || req.user.role !== role) {
+      res.status(403).json({ error: 'Forbidden' })
+      return
+    }
+    next()
+  }
+}
+
+module.exports = numflow.feature({
+  middlewares: [
+    authenticate,
+    requireRole('admin')
+  ],
+
+  contextInitializer: (ctx, req, res) => {
+    ctx.adminId = req.user.id
+  }
+})
+```
+
+---
+
+### 리소스 정리 (Cleanup)
+
+에러 발생 시 정리 로직은 `onError`를 사용합니다.
+
+**데이터베이스 연결 정리:**
+```javascript
+const numflow = require('numflow')
+
+module.exports = numflow.feature({
+  contextInitializer: async (ctx, req, res) => {
+    ctx.dbConnection = await db.connect()
+  },
+
+  onError: async (error, ctx, req, res) => {
+    // 항상 리소스 정리
+    if (ctx.dbConnection) {
+      await ctx.dbConnection.close()
+    }
+
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// 성공 시에도 마지막 step에서 정리
+// features/.../steps/900-respond.js
+module.exports = async (ctx, req, res) => {
+  // 성공 후 정리
+  if (ctx.dbConnection) {
+    await ctx.dbConnection.close()
+  }
+
+  res.json({ success: true })
+}
+```
+
+**파일 업로드 정리:**
+```javascript
+const numflow = require('numflow')
+const fs = require('fs').promises
+
+module.exports = numflow.feature({
+  contextInitializer: async (ctx, req, res) => {
+    ctx.tempFiles = []
+  },
+
+  onError: async (error, ctx, req, res) => {
+    // 에러 시 임시 파일 삭제
+    if (ctx.tempFiles && ctx.tempFiles.length > 0) {
+      await Promise.all(
+        ctx.tempFiles.map(file =>
+          fs.unlink(file).catch(() => {})
+        )
+      )
+    }
+
+    res.status(500).json({ error: error.message })
+  }
+})
+```
+
+---
+
+### Rate Limiting
+
+Rate limiting은 middlewares를 사용합니다.
+
+**간단한 Rate Limiter:**
+```javascript
+const numflow = require('numflow')
+const rateLimit = require('express-rate-limit')
+
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15분
+  max: 100, // IP당 15분에 100개 요청으로 제한
+  message: 'Too many requests from this IP'
+})
+
+module.exports = numflow.feature({
+  middlewares: [limiter],
+
+  // ... 나머지 설정
+})
+```
+
+---
+
+### 입력 검증 (Input Validation)
+
+첫 번째 step이나 contextInitializer에서 입력을 검증합니다.
+
+**첫 번째 Step에서 검증:**
+```javascript
+// features/.../steps/100-validate.js
+module.exports = async (ctx, req, res) => {
+  const { email, password } = req.body
+
+  const errors = []
+
+  if (!email || !email.includes('@')) {
+    errors.push('Invalid email')
+  }
+
+  if (!password || password.length < 8) {
+    errors.push('Password must be at least 8 characters')
+  }
+
+  if (errors.length > 0) {
+    res.status(400).json({ errors })
+    return // 실행 중단
+  }
+
+  // 검증된 데이터 저장
+  ctx.validatedInput = { email, password }
+}
+```
+
+**검증 라이브러리 사용 (Joi, Zod 등):**
+```javascript
+const Joi = require('joi')
+
+// features/.../steps/100-validate.js
+const schema = Joi.object({
+  email: Joi.string().email().required(),
+  password: Joi.string().min(8).required(),
+  name: Joi.string().min(2).max(50)
+})
+
+module.exports = async (ctx, req, res) => {
+  const { error, value } = schema.validate(req.body)
+
+  if (error) {
+    res.status(400).json({
+      errors: error.details.map(d => d.message)
+    })
+    return
+  }
+
+  ctx.validatedInput = value
+}
+```
+
+---
+
+### 캐싱 (Caching)
+
+초기 step에서 캐싱을 구현하여 불필요한 처리를 건너뜁니다.
+
+**간단한 캐시 확인:**
+```javascript
+// features/.../steps/100-check-cache.js
+const cache = require('./cache') // Redis, memory cache 등
+
+module.exports = async (ctx, req, res) => {
+  const cacheKey = `order:${req.params.id}`
+  const cached = await cache.get(cacheKey)
+
+  if (cached) {
+    // 캐시 히트 - 응답 전송 및 나머지 step 건너뛰기
+    res.json(JSON.parse(cached))
+    return // 나머지 step 건너뜀, async task는 실행됨
+  }
+
+  // 캐시 미스 - 다음 step으로 진행
+  ctx.cacheKey = cacheKey
+}
+
+// features/.../steps/200-fetch-data.js
+module.exports = async (ctx, req, res) => {
+  const order = await db.orders.findById(req.params.id)
+  ctx.order = order
+}
+
+// features/.../steps/900-respond.js
+module.exports = async (ctx, req, res) => {
+  // 결과 캐싱
+  await cache.set(ctx.cacheKey, JSON.stringify(ctx.order), { ttl: 300 })
+
+  res.json(ctx.order)
+}
+```
+
+---
+
+### 요약
+
+**모든 일반적인 패턴은 기존 메커니즘으로 해결 가능합니다:**
+
+| 패턴 | 해결 방법 |
+|------|----------|
+| 트랜잭션 관리 | `contextInitializer` + `onError` + 마지막 step |
+| 로깅 | Middlewares + `contextInitializer` |
+| 인증/권한 부여 | Middlewares + `contextInitializer` |
+| 리소스 정리 | `onError` + 마지막 step |
+| Rate Limiting | Middlewares |
+| 입력 검증 | 첫 번째 step (100-validate.js) |
+| 캐싱 | 초기 step + 마지막 step |
+| 성능 모니터링 | `contextInitializer` + 마지막 step |
+
+**추가 라이프사이클 훅이 필요 없습니다!** ✅
 
 ---
 

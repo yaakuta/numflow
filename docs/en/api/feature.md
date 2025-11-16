@@ -16,6 +16,7 @@ Feature-First Auto-Orchestration is Numflow's **killer feature** that automatica
 - [Async Tasks](#async-tasks)
 - [Registration Methods](#registration-methods)
 - [Advanced Configuration](#advanced-configuration)
+- [Common Patterns](#common-patterns)
 - [Error Handling & Retry](#error-handling--retry)
 - [Debug Mode](#debug-mode)
 - [Complete Examples](#complete-examples)
@@ -919,6 +920,441 @@ contextInitializer: async (ctx, req, res) => {
   ctx.permissions = user.permissions
 }
 ```
+
+---
+
+## Common Patterns
+
+Practical solutions for common use cases using existing lifecycle hooks (contextInitializer, onError, middlewares).
+
+### Transaction Management
+
+Use `contextInitializer` + `onError` + final step for transaction lifecycle.
+
+**PostgreSQL Example:**
+```javascript
+const numflow = require('numflow')
+
+module.exports = numflow.feature({
+  // Start transaction
+  contextInitializer: async (ctx, req, res) => {
+    ctx.dbClient = await db.connect()
+    await ctx.dbClient.query('BEGIN')
+    ctx.transactionStarted = true
+  },
+
+  onError: async (error, ctx, req, res) => {
+    // Rollback on error
+    if (ctx.transactionStarted && ctx.dbClient) {
+      await ctx.dbClient.query('ROLLBACK')
+      await ctx.dbClient.release()
+    }
+
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// Final step commits transaction
+// features/.../steps/900-respond.js
+module.exports = async (ctx, req, res) => {
+  // Commit transaction
+  if (ctx.transactionStarted && ctx.dbClient) {
+    await ctx.dbClient.query('COMMIT')
+    await ctx.dbClient.release()
+  }
+
+  res.json({ success: true, order: ctx.order })
+}
+```
+
+**MongoDB Example:**
+```javascript
+const numflow = require('numflow')
+
+module.exports = numflow.feature({
+  contextInitializer: async (ctx, req, res) => {
+    ctx.session = await mongoose.startSession()
+    ctx.session.startTransaction()
+  },
+
+  onError: async (error, ctx, req, res) => {
+    // Rollback on error
+    if (ctx.session) {
+      await ctx.session.abortTransaction()
+      await ctx.session.endSession()
+    }
+
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// Final step commits transaction
+// features/.../steps/900-respond.js
+module.exports = async (ctx, req, res) => {
+  // Commit transaction
+  if (ctx.session) {
+    await ctx.session.commitTransaction()
+    await ctx.session.endSession()
+  }
+
+  res.json({ success: true })
+}
+```
+
+**Key Points:**
+- ✅ Start transaction in `contextInitializer`
+- ✅ Rollback in `onError`
+- ✅ Commit in final step (e.g., `900-respond.js`)
+- ✅ All steps execute within the transaction scope
+
+---
+
+### Logging and Monitoring
+
+Use middlewares for request/response logging, and contextInitializer for timing.
+
+**Request Logging with Middleware:**
+```javascript
+const numflow = require('numflow')
+
+// Create logging middleware
+function requestLogger(req, res, next) {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`)
+  next()
+}
+
+module.exports = numflow.feature({
+  middlewares: [requestLogger],
+
+  // ... rest of configuration
+})
+```
+
+**Performance Monitoring:**
+```javascript
+const numflow = require('numflow')
+
+module.exports = numflow.feature({
+  contextInitializer: (ctx, req, res) => {
+    // Start timer
+    ctx.startTime = Date.now()
+    ctx.requestId = generateRequestId()
+  }
+})
+
+// Final step logs duration
+// features/.../steps/900-respond.js
+module.exports = async (ctx, req, res) => {
+  const duration = Date.now() - ctx.startTime
+
+  console.log({
+    requestId: ctx.requestId,
+    method: req.method,
+    path: req.url,
+    duration: `${duration}ms`,
+    status: 200
+  })
+
+  res.json({ success: true })
+}
+```
+
+**Structured Logging:**
+```javascript
+const numflow = require('numflow')
+const logger = require('./logger') // Winston, Pino, etc.
+
+module.exports = numflow.feature({
+  contextInitializer: (ctx, req, res) => {
+    ctx.logger = logger.child({
+      requestId: generateRequestId(),
+      userId: req.user?.id,
+      path: req.url,
+      method: req.method
+    })
+
+    ctx.logger.info('Request started')
+  },
+
+  onError: async (error, ctx, req, res) => {
+    ctx.logger?.error('Request failed', { error: error.message })
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// Use ctx.logger in steps
+// features/.../steps/100-validate.js
+module.exports = async (ctx, req, res) => {
+  ctx.logger.info('Validating order')
+  // ... validation logic
+}
+```
+
+---
+
+### Authentication and Authorization
+
+Use middlewares for authentication, contextInitializer for user data.
+
+**Basic Authentication:**
+```javascript
+const numflow = require('numflow')
+
+function authenticate(req, res, next) {
+  const token = req.headers.authorization?.replace('Bearer ', '')
+
+  if (!token) {
+    res.status(401).json({ error: 'Unauthorized' })
+    return
+  }
+
+  try {
+    req.user = verifyToken(token)
+    next()
+  } catch (error) {
+    res.status(401).json({ error: 'Invalid token' })
+  }
+}
+
+module.exports = numflow.feature({
+  middlewares: [authenticate],
+
+  contextInitializer: (ctx, req, res) => {
+    // User already authenticated by middleware
+    ctx.userId = req.user.id
+    ctx.userRole = req.user.role
+    ctx.permissions = req.user.permissions
+  }
+})
+```
+
+**Role-Based Authorization:**
+```javascript
+const numflow = require('numflow')
+
+function requireRole(role) {
+  return (req, res, next) => {
+    if (!req.user || req.user.role !== role) {
+      res.status(403).json({ error: 'Forbidden' })
+      return
+    }
+    next()
+  }
+}
+
+module.exports = numflow.feature({
+  middlewares: [
+    authenticate,
+    requireRole('admin')
+  ],
+
+  contextInitializer: (ctx, req, res) => {
+    ctx.adminId = req.user.id
+  }
+})
+```
+
+---
+
+### Resource Cleanup
+
+Use `onError` for cleanup logic when errors occur.
+
+**Database Connection Cleanup:**
+```javascript
+const numflow = require('numflow')
+
+module.exports = numflow.feature({
+  contextInitializer: async (ctx, req, res) => {
+    ctx.dbConnection = await db.connect()
+  },
+
+  onError: async (error, ctx, req, res) => {
+    // Always cleanup resources
+    if (ctx.dbConnection) {
+      await ctx.dbConnection.close()
+    }
+
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// Also cleanup in final step
+// features/.../steps/900-respond.js
+module.exports = async (ctx, req, res) => {
+  // Cleanup after success
+  if (ctx.dbConnection) {
+    await ctx.dbConnection.close()
+  }
+
+  res.json({ success: true })
+}
+```
+
+**File Upload Cleanup:**
+```javascript
+const numflow = require('numflow')
+const fs = require('fs').promises
+
+module.exports = numflow.feature({
+  contextInitializer: async (ctx, req, res) => {
+    ctx.tempFiles = []
+  },
+
+  onError: async (error, ctx, req, res) => {
+    // Delete temp files on error
+    if (ctx.tempFiles && ctx.tempFiles.length > 0) {
+      await Promise.all(
+        ctx.tempFiles.map(file =>
+          fs.unlink(file).catch(() => {})
+        )
+      )
+    }
+
+    res.status(500).json({ error: error.message })
+  }
+})
+```
+
+---
+
+### Rate Limiting
+
+Use middlewares for rate limiting.
+
+**Simple Rate Limiter:**
+```javascript
+const numflow = require('numflow')
+const rateLimit = require('express-rate-limit')
+
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP'
+})
+
+module.exports = numflow.feature({
+  middlewares: [limiter],
+
+  // ... rest of configuration
+})
+```
+
+---
+
+### Input Validation
+
+Validate input in the first step or in contextInitializer.
+
+**Validation in First Step:**
+```javascript
+// features/.../steps/100-validate.js
+module.exports = async (ctx, req, res) => {
+  const { email, password } = req.body
+
+  const errors = []
+
+  if (!email || !email.includes('@')) {
+    errors.push('Invalid email')
+  }
+
+  if (!password || password.length < 8) {
+    errors.push('Password must be at least 8 characters')
+  }
+
+  if (errors.length > 0) {
+    res.status(400).json({ errors })
+    return // Stop execution
+  }
+
+  // Store validated data
+  ctx.validatedInput = { email, password }
+}
+```
+
+**Using Validation Library (Joi, Zod, etc.):**
+```javascript
+const Joi = require('joi')
+
+// features/.../steps/100-validate.js
+const schema = Joi.object({
+  email: Joi.string().email().required(),
+  password: Joi.string().min(8).required(),
+  name: Joi.string().min(2).max(50)
+})
+
+module.exports = async (ctx, req, res) => {
+  const { error, value } = schema.validate(req.body)
+
+  if (error) {
+    res.status(400).json({
+      errors: error.details.map(d => d.message)
+    })
+    return
+  }
+
+  ctx.validatedInput = value
+}
+```
+
+---
+
+### Caching
+
+Implement caching in early steps to skip unnecessary processing.
+
+**Simple Cache Check:**
+```javascript
+// features/.../steps/100-check-cache.js
+const cache = require('./cache') // Redis, memory cache, etc.
+
+module.exports = async (ctx, req, res) => {
+  const cacheKey = `order:${req.params.id}`
+  const cached = await cache.get(cacheKey)
+
+  if (cached) {
+    // Cache hit - send response and skip remaining steps
+    res.json(JSON.parse(cached))
+    return // Remaining steps skipped, async tasks execute
+  }
+
+  // Cache miss - continue to next step
+  ctx.cacheKey = cacheKey
+}
+
+// features/.../steps/200-fetch-data.js
+module.exports = async (ctx, req, res) => {
+  const order = await db.orders.findById(req.params.id)
+  ctx.order = order
+}
+
+// features/.../steps/900-respond.js
+module.exports = async (ctx, req, res) => {
+  // Cache the result
+  await cache.set(ctx.cacheKey, JSON.stringify(ctx.order), { ttl: 300 })
+
+  res.json(ctx.order)
+}
+```
+
+---
+
+### Summary
+
+**All common patterns can be solved with existing mechanisms:**
+
+| Pattern | Solution |
+|---------|----------|
+| Transaction Management | `contextInitializer` + `onError` + final step |
+| Logging | Middlewares + `contextInitializer` |
+| Authentication/Authorization | Middlewares + `contextInitializer` |
+| Resource Cleanup | `onError` + final step |
+| Rate Limiting | Middlewares |
+| Input Validation | First step (100-validate.js) |
+| Caching | Early step + final step |
+| Performance Monitoring | `contextInitializer` + final step |
+
+**No additional lifecycle hooks needed!** ✅
 
 ---
 
