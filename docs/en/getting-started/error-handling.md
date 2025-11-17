@@ -696,6 +696,273 @@ module.exports = async (context, req, res) => {
 
 ---
 
+### onError and Global Error Handler Integration
+
+Understanding how `onError` interacts with the global error handler (`app.onError` or `app.use((err, req, res, next) => {...})`) is crucial for proper error handling.
+
+#### Error Flow Decision Tree
+
+```
+Step throws error
+    ↓
+Does Feature have onError?
+    ├─ NO  → Automatically wrapped in FeatureExecutionError
+    │         → Passed to Global Error Handler ✅
+    │
+    └─ YES → onError executes
+              ↓
+              What does onError return?
+              ├─ Sends response (res.json/send/end)
+              │   → Global Error Handler NOT executed ❌
+              │
+              ├─ Returns RETRY signal
+              │   → Retry the Feature (no Global Error Handler)
+              │
+              └─ Throws error (throw error)
+                  → Passed to Global Error Handler ✅
+```
+
+---
+
+#### Pattern 1: onError Sends Response (Global Handler NOT Called)
+
+When `onError` sends a response, the request ends immediately and the global error handler is **not executed**.
+
+```javascript
+// Feature configuration
+const numflow = require('numflow')
+
+module.exports = numflow.feature({
+  onError: async (error, ctx, req, res) => {
+    // Cleanup (e.g., rollback transaction)
+    if (ctx.transaction) {
+      await ctx.transaction.rollback()
+    }
+
+    // Send response → Global error handler NOT called
+    res.status(500).json({
+      error: error.message,
+      orderId: ctx.orderId
+    })
+
+    // Implicit return → execution stops here
+  }
+})
+
+// Global error handler
+app.use((err, req, res, next) => {
+  // ❌ This will NOT be executed!
+  console.log('Global error handler:', err)
+})
+```
+
+**Use Case:**
+- Feature-specific error responses
+- Custom error formats per Feature
+- Different error handling logic per business domain
+
+---
+
+#### Pattern 2: onError Throws Error (Global Handler Called)
+
+When `onError` throws an error, it's passed to the global error handler.
+
+```javascript
+// Feature configuration
+const numflow = require('numflow')
+
+module.exports = numflow.feature({
+  onError: async (error, ctx, req, res) => {
+    // Cleanup only (no response)
+    if (ctx.transaction) {
+      await ctx.transaction.rollback()
+    }
+
+    // Throw error → Passed to global error handler
+    throw error
+  }
+})
+
+// Global error handler
+app.use((err, req, res, next) => {
+  // ✅ This WILL be executed!
+  console.log('Global error handler:', err)
+
+  // Unified error logging
+  logger.error('Error occurred', {
+    message: err.message,
+    stack: err.stack,
+    path: req.path
+  })
+
+  // Unified error response
+  res.status(err.statusCode || 500).json({
+    error: err.message,
+    code: err.code || 'INTERNAL_ERROR',
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+  })
+})
+```
+
+**Use Case:**
+- Centralized error logging
+- Unified error response format
+- Cleanup in Feature, response in global handler
+
+---
+
+#### Pattern 3: No onError (Global Handler Automatically Called)
+
+When a Feature has no `onError` handler, errors are automatically passed to the global error handler.
+
+**Source Code Reference:**
+```typescript
+// src/feature/index.ts (line 267-279)
+// Pass to Global Error Handler if no custom error handler
+// Wrap with FeatureExecutionError
+throw new FeatureExecutionError(error as Error, step)
+```
+
+**Example:**
+
+```javascript
+// Feature configuration - NO onError
+const numflow = require('numflow')
+
+module.exports = numflow.feature({
+  // No onError handler
+  contextInitializer: (ctx, req, res) => {
+    ctx.userId = req.user?.id
+  }
+})
+
+// Step throws error
+// steps/100-validate.js
+const { ValidationError } = require('numflow')
+
+module.exports = async (ctx, req, res) => {
+  if (!ctx.userId) {
+    throw new ValidationError('User ID is required', {
+      userId: ['User must be authenticated']
+    })
+  }
+}
+
+// Global error handler
+app.use((err, req, res, next) => {
+  // ✅ This WILL be executed!
+  // err is wrapped in FeatureExecutionError
+  // err.originalError contains the ValidationError
+
+  const original = err.originalError || err
+
+  res.status(original.statusCode || 500).json({
+    error: original.message,
+    validationErrors: original.validationErrors,
+    step: err.step  // { number: 100, name: "100-validate.js" }
+  })
+})
+```
+
+**Use Case:**
+- Simple Features without cleanup logic
+- Centralized error handling
+- No transaction management needed
+
+---
+
+#### Comparison Table
+
+| Pattern | onError Handler | Response Sent | Global Handler Called | Use Case |
+|---------|-----------------|---------------|----------------------|----------|
+| **1. Send Response** | ✅ Yes | In `onError` | ❌ **No** | Feature-specific error formats |
+| **2. Throw Error** | ✅ Yes | In global handler | ✅ **Yes** | Cleanup in Feature + unified response |
+| **3. No onError** | ❌ No | In global handler | ✅ **Yes** | Simple Features, centralized handling |
+
+---
+
+#### Best Practice Recommendations
+
+**Recommended: Pattern 2 (Cleanup + Throw)**
+
+```javascript
+// Feature handles cleanup, global handler handles response
+module.exports = numflow.feature({
+  contextInitializer: async (ctx, req, res) => {
+    ctx.transaction = await sequelize.transaction()
+  },
+
+  onError: async (error, ctx, req, res) => {
+    // ✅ Cleanup only
+    if (ctx.transaction) {
+      await ctx.transaction.rollback()
+    }
+
+    // ✅ Throw to global handler
+    throw error
+  }
+})
+
+// Global handler: unified logging + response
+app.use((err, req, res, next) => {
+  // Centralized logging
+  logger.error({
+    message: err.message,
+    path: req.path,
+    userId: req.user?.id
+  })
+
+  // Centralized response format
+  res.status(err.statusCode || 500).json({
+    error: err.message,
+    code: err.code
+  })
+})
+```
+
+**Benefits:**
+- ✅ Separation of concerns (cleanup vs response)
+- ✅ Centralized error logging
+- ✅ Unified error response format
+- ✅ Easy to maintain
+
+---
+
+#### Anti-Pattern: Response + Throw
+
+**❌ Don't do this:**
+
+```javascript
+onError: async (error, ctx, req, res) => {
+  await ctx.transaction.rollback()
+
+  res.status(500).json({ error: error.message })  // ← Response sent
+
+  throw error  // ← ❌ Throws after response!
+  // Global handler executes but can't send response (headers already sent)
+  // May cause "Error: Cannot set headers after they are sent" warnings
+}
+```
+
+**✅ Do one of these:**
+
+```javascript
+// Option 1: Send response only
+onError: async (error, ctx, req, res) => {
+  await ctx.transaction.rollback()
+  res.status(500).json({ error: error.message })
+  return  // ← Explicit return (no throw)
+}
+
+// Option 2: Throw only (response in global handler)
+onError: async (error, ctx, req, res) => {
+  await ctx.transaction.rollback()
+  throw error  // ← No response here
+}
+```
+
+---
+
 ## Best Practices
 
 ### 1. Use Specific Error Classes

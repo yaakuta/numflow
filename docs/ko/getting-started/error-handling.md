@@ -543,6 +543,275 @@ module.exports = numflow.feature({
 ⚠️ **표준 Error 속성 제외**: `message`, `stack`, `name` 등은 자동으로 제외됨 (중복 방지)
 ⚠️ **onError 우선**: onError에서 응답을 직접 보내면 글로벌 에러 핸들러는 실행되지 않음
 
+---
+
+### onError와 글로벌 에러 핸들러 통합
+
+`onError`가 전역 에러 핸들러(`app.onError` 또는 `app.use((err, req, res, next) => {...})`)와 어떻게 상호작용하는지 이해하는 것이 중요합니다.
+
+#### 에러 흐름 의사결정 트리
+
+```
+Step에서 에러 발생
+    ↓
+Feature에 onError가 있는가?
+    ├─ NO  → 자동으로 FeatureExecutionError로 래핑
+    │         → 글로벌 에러 핸들러로 전달 ✅
+    │
+    └─ YES → onError 실행
+              ↓
+              onError가 무엇을 반환하는가?
+              ├─ 응답 전송 (res.json/send/end)
+              │   → 글로벌 에러 핸들러 실행 안 됨 ❌
+              │
+              ├─ RETRY 시그널 반환
+              │   → Feature 재시도 (글로벌 에러 핸들러 없음)
+              │
+              └─ 에러 throw (throw error)
+                  → 글로벌 에러 핸들러로 전달 ✅
+```
+
+---
+
+#### 패턴 1: onError에서 응답 전송 (글로벌 핸들러 실행 안 됨)
+
+`onError`에서 응답을 보내면 요청이 즉시 종료되고 글로벌 에러 핸들러는 **실행되지 않습니다**.
+
+```javascript
+// Feature 설정
+const numflow = require('numflow')
+
+module.exports = numflow.feature({
+  onError: async (error, ctx, req, res) => {
+    // Cleanup (예: 트랜잭션 롤백)
+    if (ctx.transaction) {
+      await ctx.transaction.rollback()
+    }
+
+    // 응답 전송 → 글로벌 에러 핸들러 실행 안 됨
+    res.status(500).json({
+      error: error.message,
+      orderId: ctx.orderId
+    })
+
+    // 암묵적 return → 여기서 실행 종료
+  }
+})
+
+// 글로벌 에러 핸들러
+app.use((err, req, res, next) => {
+  // ❌ 실행되지 않음!
+  console.log('글로벌 에러 핸들러:', err)
+})
+```
+
+**사용 시나리오:**
+- Feature별 커스텀 에러 응답
+- Feature마다 다른 에러 포맷
+- 비즈니스 도메인별로 다른 에러 처리 로직
+
+---
+
+#### 패턴 2: onError에서 throw (글로벌 핸들러 실행됨)
+
+`onError`에서 에러를 throw하면 글로벌 에러 핸들러로 전달됩니다.
+
+```javascript
+// Feature 설정
+const numflow = require('numflow')
+
+module.exports = numflow.feature({
+  onError: async (error, ctx, req, res) => {
+    // Cleanup만 수행 (응답 없음)
+    if (ctx.transaction) {
+      await ctx.transaction.rollback()
+    }
+
+    // 에러 throw → 글로벌 에러 핸들러로 전달
+    throw error
+  }
+})
+
+// 글로벌 에러 핸들러
+app.use((err, req, res, next) => {
+  // ✅ 실행됨!
+  console.log('글로벌 에러 핸들러:', err)
+
+  // 통합 에러 로깅
+  logger.error('에러 발생', {
+    message: err.message,
+    stack: err.stack,
+    path: req.path
+  })
+
+  // 통합 에러 응답
+  res.status(err.statusCode || 500).json({
+    error: err.message,
+    code: err.code || 'INTERNAL_ERROR',
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+  })
+})
+```
+
+**사용 시나리오:**
+- 중앙집중식 에러 로깅
+- 통일된 에러 응답 포맷
+- Feature에서는 cleanup만, 응답은 글로벌 핸들러에서
+
+---
+
+#### 패턴 3: onError 없음 (글로벌 핸들러 자동 실행)
+
+Feature에 `onError` 핸들러가 없으면 에러가 자동으로 글로벌 에러 핸들러로 전달됩니다.
+
+**소스 코드 참조:**
+```typescript
+// src/feature/index.ts (line 267-279)
+// Pass to Global Error Handler if no custom error handler
+// Wrap with FeatureExecutionError
+throw new FeatureExecutionError(error as Error, step)
+```
+
+**예제:**
+
+```javascript
+// Feature 설정 - onError 없음
+const numflow = require('numflow')
+
+module.exports = numflow.feature({
+  // onError 핸들러 없음
+  contextInitializer: (ctx, req, res) => {
+    ctx.userId = req.user?.id
+  }
+})
+
+// Step에서 에러 발생
+// steps/100-validate.js
+const { ValidationError } = require('numflow')
+
+module.exports = async (ctx, req, res) => {
+  if (!ctx.userId) {
+    throw new ValidationError('User ID is required', {
+      userId: ['사용자 인증이 필요합니다']
+    })
+  }
+}
+
+// 글로벌 에러 핸들러
+app.use((err, req, res, next) => {
+  // ✅ 실행됨!
+  // err는 FeatureExecutionError로 래핑됨
+  // err.originalError에 ValidationError가 있음
+
+  const original = err.originalError || err
+
+  res.status(original.statusCode || 500).json({
+    error: original.message,
+    validationErrors: original.validationErrors,
+    step: err.step  // { number: 100, name: "100-validate.js" }
+  })
+})
+```
+
+**사용 시나리오:**
+- cleanup 로직이 필요 없는 간단한 Feature
+- 중앙집중식 에러 처리
+- 트랜잭션 관리가 필요 없는 경우
+
+---
+
+#### 비교 테이블
+
+| 패턴 | onError 핸들러 | 응답 전송 위치 | 글로벌 핸들러 실행 | 사용 시나리오 |
+|------|---------------|---------------|------------------|---------------|
+| **1. 응답 전송** | ✅ 있음 | onError에서 | ❌ **실행 안 됨** | Feature별 커스텀 응답 포맷 |
+| **2. throw** | ✅ 있음 | 글로벌 핸들러에서 | ✅ **실행됨** | Cleanup + 통합 응답 |
+| **3. onError 없음** | ❌ 없음 | 글로벌 핸들러에서 | ✅ **실행됨** | 간단한 Feature, 중앙집중식 처리 |
+
+---
+
+#### 권장 방법
+
+**권장: 패턴 2 (Cleanup + Throw)**
+
+```javascript
+// Feature는 cleanup만, 글로벌 핸들러가 응답 담당
+module.exports = numflow.feature({
+  contextInitializer: async (ctx, req, res) => {
+    ctx.transaction = await sequelize.transaction()
+  },
+
+  onError: async (error, ctx, req, res) => {
+    // ✅ Cleanup만 수행
+    if (ctx.transaction) {
+      await ctx.transaction.rollback()
+    }
+
+    // ✅ 글로벌 핸들러로 throw
+    throw error
+  }
+})
+
+// 글로벌 핸들러: 통합 로깅 + 응답
+app.use((err, req, res, next) => {
+  // 중앙집중식 로깅
+  logger.error({
+    message: err.message,
+    path: req.path,
+    userId: req.user?.id
+  })
+
+  // 중앙집중식 응답 포맷
+  res.status(err.statusCode || 500).json({
+    error: err.message,
+    code: err.code
+  })
+})
+```
+
+**장점:**
+- ✅ 관심사 분리 (cleanup vs 응답)
+- ✅ 중앙집중식 에러 로깅
+- ✅ 통일된 에러 응답 포맷
+- ✅ 유지보수 용이
+
+---
+
+#### 안티패턴: 응답 + Throw
+
+**❌ 하지 말아야 할 것:**
+
+```javascript
+onError: async (error, ctx, req, res) => {
+  await ctx.transaction.rollback()
+
+  res.status(500).json({ error: error.message })  // ← 응답 전송
+
+  throw error  // ← ❌ 응답 후 throw!
+  // 글로벌 핸들러가 실행되지만 응답을 보낼 수 없음 (헤더 이미 전송됨)
+  // "Error: Cannot set headers after they are sent" 경고 발생 가능
+}
+```
+
+**✅ 올바른 방법:**
+
+```javascript
+// 방법 1: 응답만 전송
+onError: async (error, ctx, req, res) => {
+  await ctx.transaction.rollback()
+  res.status(500).json({ error: error.message })
+  return  // ← 명시적 return (throw 없음)
+}
+
+// 방법 2: throw만 (응답은 글로벌 핸들러에서)
+onError: async (error, ctx, req, res) => {
+  await ctx.transaction.rollback()
+  throw error  // ← 여기서는 응답 없음
+}
+```
+
+---
+
 ### Feature 에러 재시도 (Retry)
 
 Feature의 onError 핸들러에서 `numflow.retry()`를 반환하면 Feature를 자동으로 재시도합니다.
