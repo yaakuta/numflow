@@ -1009,6 +1009,244 @@ module.exports = async (ctx, req, res) => {
 
 ---
 
+#### ORM Compatibility
+
+Different ORMs have different transaction APIs. Here's how they work with Numflow's Step-based structure.
+
+**Compatibility Table:**
+
+| ORM | Manual Transaction | Step Separation | Numflow Compatible |
+|-----|-------------------|-----------------|-------------------|
+| TypeORM | ✅ QueryRunner | ✅ Possible | ✅ **Yes** |
+| Sequelize | ✅ Unmanaged | ✅ Possible | ✅ **Yes** |
+| Knex.js | ✅ Manual | ✅ Possible | ✅ **Yes** |
+| Objection.js | ✅ Manual | ✅ Possible | ✅ **Yes** |
+| MikroORM | ✅ Manual | ✅ Possible | ✅ **Yes** |
+| **Prisma** | ❌ Callback only | ❌ Not possible | ⚠️ **Limited** |
+| **Drizzle** | ❌ Callback only | ❌ Not possible | ⚠️ **Limited** |
+
+---
+
+**TypeORM Example (QueryRunner):**
+
+```javascript
+const numflow = require('numflow')
+
+module.exports = numflow.feature({
+  contextInitializer: async (ctx, req, res) => {
+    ctx.queryRunner = dataSource.createQueryRunner()
+    await ctx.queryRunner.connect()
+    await ctx.queryRunner.startTransaction()
+    ctx.transactionStarted = true
+  },
+
+  onError: async (error, ctx, req, res) => {
+    if (ctx.transactionStarted && ctx.queryRunner) {
+      await ctx.queryRunner.rollbackTransaction()
+      await ctx.queryRunner.release()
+    }
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// features/.../steps/100-create-order.js
+module.exports = async (ctx, req, res) => {
+  const order = ctx.queryRunner.manager.create(Order, {
+    userId: ctx.userId,
+    productId: req.body.productId
+  })
+  ctx.order = await ctx.queryRunner.manager.save(order)
+}
+
+// features/.../steps/200-update-stock.js
+module.exports = async (ctx, req, res) => {
+  await ctx.queryRunner.manager.decrement(
+    Product,
+    { id: req.body.productId },
+    'stock',
+    1
+  )
+}
+
+// features/.../steps/900-respond.js
+module.exports = async (ctx, req, res) => {
+  await ctx.queryRunner.commitTransaction()
+  await ctx.queryRunner.release()
+  res.json({ success: true, order: ctx.order })
+}
+```
+
+---
+
+**Sequelize Example (Unmanaged Transaction):**
+
+```javascript
+const numflow = require('numflow')
+
+module.exports = numflow.feature({
+  contextInitializer: async (ctx, req, res) => {
+    ctx.transaction = await sequelize.transaction()
+    ctx.transactionStarted = true
+  },
+
+  onError: async (error, ctx, req, res) => {
+    if (ctx.transactionStarted && ctx.transaction) {
+      await ctx.transaction.rollback()
+    }
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// features/.../steps/100-create-order.js
+module.exports = async (ctx, req, res) => {
+  ctx.order = await Order.create({
+    userId: ctx.userId,
+    productId: req.body.productId
+  }, {
+    transaction: ctx.transaction  // Pass transaction
+  })
+}
+
+// features/.../steps/200-update-stock.js
+module.exports = async (ctx, req, res) => {
+  await Product.decrement('stock', {
+    by: 1,
+    where: { id: req.body.productId },
+    transaction: ctx.transaction  // Pass transaction
+  })
+}
+
+// features/.../steps/900-respond.js
+module.exports = async (ctx, req, res) => {
+  await ctx.transaction.commit()
+  res.json({ success: true, order: ctx.order })
+}
+```
+
+---
+
+**Knex.js Example (Manual Transaction):**
+
+```javascript
+const numflow = require('numflow')
+
+module.exports = numflow.feature({
+  contextInitializer: async (ctx, req, res) => {
+    const trxProvider = knex.transactionProvider()
+    ctx.trx = await trxProvider()
+    ctx.transactionStarted = true
+  },
+
+  onError: async (error, ctx, req, res) => {
+    if (ctx.transactionStarted && ctx.trx) {
+      await ctx.trx.rollback()
+    }
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// features/.../steps/100-create-order.js
+module.exports = async (ctx, req, res) => {
+  const [order] = await ctx.trx('orders')
+    .insert({
+      user_id: ctx.userId,
+      product_id: req.body.productId
+    })
+    .returning('*')
+
+  ctx.order = order
+}
+
+// features/.../steps/200-update-stock.js
+module.exports = async (ctx, req, res) => {
+  await ctx.trx('products')
+    .where({ id: req.body.productId })
+    .decrement('stock', 1)
+}
+
+// features/.../steps/900-respond.js
+module.exports = async (ctx, req, res) => {
+  await ctx.trx.commit()
+  res.json({ success: true, order: ctx.order })
+}
+```
+
+---
+
+**⚠️ Prisma Limitation:**
+
+Prisma only supports callback-based transactions, which cannot be split across multiple Steps.
+
+**Problem:**
+```javascript
+// ❌ Cannot do this with Prisma
+contextInitializer: async (ctx, req, res) => {
+  ctx.tx = await prisma.$transaction(async (tx) => {
+    return tx  // ❌ tx is invalid outside the callback!
+  })
+}
+
+// steps/100-create-order.js
+module.exports = async (ctx, req, res) => {
+  await ctx.tx.order.create({ ... })  // ❌ tx is already invalid!
+}
+```
+
+**Solution: Put all transaction logic in a single Step**
+```javascript
+// features/.../steps/100-process-order.js
+module.exports = async (ctx, req, res) => {
+  // ⚠️ Cannot split into multiple steps
+  await prisma.$transaction(async (tx) => {
+    // All transaction logic must be here
+    const order = await tx.order.create({
+      data: { userId: ctx.userId, productId: req.body.productId }
+    })
+
+    await tx.product.update({
+      where: { id: req.body.productId },
+      data: { stock: { decrement: 1 } }
+    })
+
+    await tx.cartItem.deleteMany({
+      where: { userId: ctx.userId }
+    })
+
+    ctx.order = order
+  })
+}
+```
+
+**Trade-offs:**
+- ✅ Transaction safety guaranteed
+- ❌ Cannot split into multiple steps (100-validate.js, 200-create.js, etc.)
+- ❌ Loses Numflow's "small steps" benefit
+- ❌ Code complexity increases
+
+**Alternative: Raw SQL (loses type safety)**
+```javascript
+contextInitializer: async (ctx, req, res) => {
+  await prisma.$executeRaw`BEGIN`
+  ctx.transactionStarted = true
+}
+
+// Now you can split steps, but lose Prisma's type safety
+```
+
+**Recommendation:**
+- If using Prisma with transactions, accept that all transaction logic must be in one Step
+- Or consider using TypeORM, Sequelize, or other ORMs that support manual transactions
+
+---
+
+**⚠️ Drizzle ORM Limitation:**
+
+Drizzle has the same limitation as Prisma (callback-based only).
+
+**Solution:** Same as Prisma - put all transaction logic in a single Step, or use Raw SQL.
+
+---
+
 ### Logging and Monitoring
 
 Use middlewares for request/response logging, and contextInitializer for timing.

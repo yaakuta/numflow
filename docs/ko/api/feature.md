@@ -1382,6 +1382,244 @@ module.exports = async (ctx, req, res) => {
 
 ---
 
+#### ORM 호환성
+
+각 ORM마다 트랜잭션 API가 다릅니다. Numflow의 Step 기반 구조와의 호환성을 확인하세요.
+
+**호환성 테이블:**
+
+| ORM | Manual Transaction | Step 분리 | Numflow 호환 |
+|-----|-------------------|----------|--------------|
+| TypeORM | ✅ QueryRunner | ✅ 가능 | ✅ **호환** |
+| Sequelize | ✅ Unmanaged | ✅ 가능 | ✅ **호환** |
+| Knex.js | ✅ Manual | ✅ 가능 | ✅ **호환** |
+| Objection.js | ✅ Manual | ✅ 가능 | ✅ **호환** |
+| MikroORM | ✅ Manual | ✅ 가능 | ✅ **호환** |
+| **Prisma** | ❌ 콜백만 지원 | ❌ 불가능 | ⚠️ **제한적** |
+| **Drizzle** | ❌ 콜백만 지원 | ❌ 불가능 | ⚠️ **제한적** |
+
+---
+
+**TypeORM 예제 (QueryRunner):**
+
+```javascript
+const numflow = require('numflow')
+
+module.exports = numflow.feature({
+  contextInitializer: async (ctx, req, res) => {
+    ctx.queryRunner = dataSource.createQueryRunner()
+    await ctx.queryRunner.connect()
+    await ctx.queryRunner.startTransaction()
+    ctx.transactionStarted = true
+  },
+
+  onError: async (error, ctx, req, res) => {
+    if (ctx.transactionStarted && ctx.queryRunner) {
+      await ctx.queryRunner.rollbackTransaction()
+      await ctx.queryRunner.release()
+    }
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// features/.../steps/100-create-order.js
+module.exports = async (ctx, req, res) => {
+  const order = ctx.queryRunner.manager.create(Order, {
+    userId: ctx.userId,
+    productId: req.body.productId
+  })
+  ctx.order = await ctx.queryRunner.manager.save(order)
+}
+
+// features/.../steps/200-update-stock.js
+module.exports = async (ctx, req, res) => {
+  await ctx.queryRunner.manager.decrement(
+    Product,
+    { id: req.body.productId },
+    'stock',
+    1
+  )
+}
+
+// features/.../steps/900-respond.js
+module.exports = async (ctx, req, res) => {
+  await ctx.queryRunner.commitTransaction()
+  await ctx.queryRunner.release()
+  res.json({ success: true, order: ctx.order })
+}
+```
+
+---
+
+**Sequelize 예제 (Unmanaged Transaction):**
+
+```javascript
+const numflow = require('numflow')
+
+module.exports = numflow.feature({
+  contextInitializer: async (ctx, req, res) => {
+    ctx.transaction = await sequelize.transaction()
+    ctx.transactionStarted = true
+  },
+
+  onError: async (error, ctx, req, res) => {
+    if (ctx.transactionStarted && ctx.transaction) {
+      await ctx.transaction.rollback()
+    }
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// features/.../steps/100-create-order.js
+module.exports = async (ctx, req, res) => {
+  ctx.order = await Order.create({
+    userId: ctx.userId,
+    productId: req.body.productId
+  }, {
+    transaction: ctx.transaction  // 트랜잭션 전달
+  })
+}
+
+// features/.../steps/200-update-stock.js
+module.exports = async (ctx, req, res) => {
+  await Product.decrement('stock', {
+    by: 1,
+    where: { id: req.body.productId },
+    transaction: ctx.transaction  // 트랜잭션 전달
+  })
+}
+
+// features/.../steps/900-respond.js
+module.exports = async (ctx, req, res) => {
+  await ctx.transaction.commit()
+  res.json({ success: true, order: ctx.order })
+}
+```
+
+---
+
+**Knex.js 예제 (Manual Transaction):**
+
+```javascript
+const numflow = require('numflow')
+
+module.exports = numflow.feature({
+  contextInitializer: async (ctx, req, res) => {
+    const trxProvider = knex.transactionProvider()
+    ctx.trx = await trxProvider()
+    ctx.transactionStarted = true
+  },
+
+  onError: async (error, ctx, req, res) => {
+    if (ctx.transactionStarted && ctx.trx) {
+      await ctx.trx.rollback()
+    }
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// features/.../steps/100-create-order.js
+module.exports = async (ctx, req, res) => {
+  const [order] = await ctx.trx('orders')
+    .insert({
+      user_id: ctx.userId,
+      product_id: req.body.productId
+    })
+    .returning('*')
+
+  ctx.order = order
+}
+
+// features/.../steps/200-update-stock.js
+module.exports = async (ctx, req, res) => {
+  await ctx.trx('products')
+    .where({ id: req.body.productId })
+    .decrement('stock', 1)
+}
+
+// features/.../steps/900-respond.js
+module.exports = async (ctx, req, res) => {
+  await ctx.trx.commit()
+  res.json({ success: true, order: ctx.order })
+}
+```
+
+---
+
+**⚠️ Prisma 제약사항:**
+
+Prisma는 콜백 기반 트랜잭션만 지원하므로, 여러 Step으로 분리할 수 없습니다.
+
+**문제:**
+```javascript
+// ❌ Prisma에서는 불가능
+contextInitializer: async (ctx, req, res) => {
+  ctx.tx = await prisma.$transaction(async (tx) => {
+    return tx  // ❌ 콜백 밖에서는 tx가 무효!
+  })
+}
+
+// steps/100-create-order.js
+module.exports = async (ctx, req, res) => {
+  await ctx.tx.order.create({ ... })  // ❌ tx가 이미 무효!
+}
+```
+
+**해결책: 모든 트랜잭션 로직을 하나의 Step에 작성**
+```javascript
+// features/.../steps/100-process-order.js
+module.exports = async (ctx, req, res) => {
+  // ⚠️ 여러 Step으로 분리 불가
+  await prisma.$transaction(async (tx) => {
+    // 모든 트랜잭션 로직을 여기에 작성해야 함
+    const order = await tx.order.create({
+      data: { userId: ctx.userId, productId: req.body.productId }
+    })
+
+    await tx.product.update({
+      where: { id: req.body.productId },
+      data: { stock: { decrement: 1 } }
+    })
+
+    await tx.cartItem.deleteMany({
+      where: { userId: ctx.userId }
+    })
+
+    ctx.order = order
+  })
+}
+```
+
+**트레이드오프:**
+- ✅ 트랜잭션 안전성 보장
+- ❌ 여러 Step으로 분리 불가 (100-validate.js, 200-create.js 등)
+- ❌ Numflow의 "작은 Step" 이점 상실
+- ❌ 코드 복잡도 증가
+
+**대안: Raw SQL 사용 (타입 안전성 상실)**
+```javascript
+contextInitializer: async (ctx, req, res) => {
+  await prisma.$executeRaw`BEGIN`
+  ctx.transactionStarted = true
+}
+
+// 이제 Step을 분리할 수 있지만, Prisma의 타입 안전성 상실
+```
+
+**권장사항:**
+- Prisma를 트랜잭션과 함께 사용한다면, 모든 트랜잭션 로직을 하나의 Step에 작성해야 함
+- 또는 TypeORM, Sequelize 등 Manual Transaction을 지원하는 ORM 사용 고려
+
+---
+
+**⚠️ Drizzle ORM 제약사항:**
+
+Drizzle도 Prisma와 동일한 제약(콜백 기반만 지원)이 있습니다.
+
+**해결책:** Prisma와 동일 - 모든 트랜잭션 로직을 하나의 Step에 작성하거나, Raw SQL 사용.
+
+---
+
 ### 로깅 및 모니터링
 
 요청/응답 로깅은 middlewares를 사용하고, 타이밍은 contextInitializer를 사용합니다.
