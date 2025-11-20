@@ -1,6 +1,6 @@
 {
   "name": "numflow",
-  "version": "0.2.9",
+  "version": "0.2.10",
   "description": "Express-compatible framework with numeric flow control - orchestrate your application flow with numbers",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",

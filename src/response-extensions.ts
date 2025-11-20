@@ -39,6 +39,15 @@ export function extendResponse(res: ServerResponse): Response {
   extendedRes.locals = {}
 
   /**
+   * Internal flag to track async response methods in progress
+   * Used to prevent race conditions when res.render(), res.sendFile(), etc.
+   * are called without await in Feature steps
+   *
+   * @internal
+   */
+  ;(extendedRes as any)._responsePending = false
+
+  /**
    * Set status code (chainable)
    * Validates status code according to RFC 7231 (Express.js 5.x compatible)
    *
@@ -63,6 +72,17 @@ export function extendResponse(res: ServerResponse): Response {
    * Send response with automatic Content-Type detection
    */
   extendedRes.send = function (body?: any): void {
+    // Check if another response is already in progress
+    if ((this as any)._responsePending) {
+      throw new Error(
+        'Cannot send response: Another response method (res.render(), res.sendFile(), etc.) is already in progress. ' +
+        'Make sure to await async response methods in your code.'
+      )
+    }
+
+    // Mark response as pending (synchronous methods complete immediately)
+    ;(this as any)._responsePending = true
+
     // Set default status code if not set
     if (!this.statusCode || this.statusCode === 200) {
       this.statusCode = 200
@@ -111,6 +131,8 @@ export function extendResponse(res: ServerResponse): Response {
 
     // Handle object/array (JSON)
     if (typeof body === 'object') {
+      // Reset pending flag before calling json() to avoid self-blocking
+      ;(this as any)._responsePending = false
       this.json(body)
       return
     }
@@ -123,6 +145,17 @@ export function extendResponse(res: ServerResponse): Response {
    * Send JSON response
    */
   extendedRes.json = function (obj: any): void {
+    // Check if another response is already in progress
+    if ((this as any)._responsePending) {
+      throw new Error(
+        'Cannot send response: Another response method (res.render(), res.sendFile(), etc.) is already in progress. ' +
+        'Make sure to await async response methods in your code.'
+      )
+    }
+
+    // Mark response as pending (synchronous methods complete immediately)
+    ;(this as any)._responsePending = true
+
     // Set default status code if not set
     if (!this.statusCode || this.statusCode === 200) {
       this.statusCode = 200
@@ -196,6 +229,17 @@ export function extendResponse(res: ServerResponse): Response {
     statusOrUrl: number | string,
     url?: string
   ): void {
+    // Check if another response is already in progress
+    if ((this as any)._responsePending) {
+      throw new Error(
+        'Cannot send response: Another response method (res.render(), res.sendFile(), etc.) is already in progress. ' +
+        'Make sure to await async response methods in your code.'
+      )
+    }
+
+    // Mark response as pending (synchronous methods complete immediately)
+    ;(this as any)._responsePending = true
+
     let status = 302 // Default redirect status
     let location: string
 
@@ -442,6 +486,9 @@ export function extendResponse(res: ServerResponse): Response {
    * res.sendFile('/path/to/file.pdf')
    */
   extendedRes.sendFile = async function (filePath: string): Promise<void> {
+    // Mark response as pending to prevent race conditions
+    ;(this as any)._responsePending = true
+
     try {
       // Resolve absolute path
       const absolutePath = path.isAbsolute(filePath) ? filePath : path.resolve(filePath)
@@ -450,6 +497,7 @@ export function extendResponse(res: ServerResponse): Response {
       const stats = await fs.promises.stat(absolutePath)
 
       if (!stats.isFile()) {
+        ;(this as any)._responsePending = false
         this.statusCode = 404
         this.setHeader('Content-Type', 'text/plain')
         this.end('Not Found')
@@ -470,14 +518,18 @@ export function extendResponse(res: ServerResponse): Response {
       stream.on('error', (err) => {
         console.error('Error reading file:', err)
         if (!this.headersSent) {
+          ;(this as any)._responsePending = false
           this.statusCode = 500
           this.end('Internal Server Error')
         }
       })
 
+      // Reset pending flag before starting the stream (pipe will send headers)
+      ;(this as any)._responsePending = false
       this.statusCode = 200
       stream.pipe(this)
     } catch (err: any) {
+      ;(this as any)._responsePending = false
       if (err.code === 'ENOENT') {
         this.statusCode = 404
         this.setHeader('Content-Type', 'text/plain')
@@ -506,6 +558,9 @@ export function extendResponse(res: ServerResponse): Response {
     filePath: string,
     filename?: string
   ): Promise<void> {
+    // Mark response as pending to prevent race conditions
+    ;(this as any)._responsePending = true
+
     try {
       // Resolve absolute path
       const absolutePath = path.isAbsolute(filePath) ? filePath : path.resolve(filePath)
@@ -514,6 +569,7 @@ export function extendResponse(res: ServerResponse): Response {
       const stats = await fs.promises.stat(absolutePath)
 
       if (!stats.isFile()) {
+        ;(this as any)._responsePending = false
         this.statusCode = 404
         this.setHeader('Content-Type', 'text/plain')
         this.end('Not Found')
@@ -541,14 +597,18 @@ export function extendResponse(res: ServerResponse): Response {
       stream.on('error', (err) => {
         console.error('Error reading file:', err)
         if (!this.headersSent) {
+          ;(this as any)._responsePending = false
           this.statusCode = 500
           this.end('Internal Server Error')
         }
       })
 
+      // Reset pending flag before starting the stream (pipe will send headers)
+      ;(this as any)._responsePending = false
       this.statusCode = 200
       stream.pipe(this)
     } catch (err: any) {
+      ;(this as any)._responsePending = false
       if (err.code === 'ENOENT') {
         this.statusCode = 404
         this.setHeader('Content-Type', 'text/plain')
@@ -583,6 +643,9 @@ export function extendResponse(res: ServerResponse): Response {
     locals?: Record<string, any>,
     callback?: (err: Error | null, html?: string) => void
   ): Promise<void> {
+    // Mark response as pending to prevent race conditions
+    ;(this as any)._responsePending = true
+
     try {
       const internalRes = asInternalResponse(this)
       const app = internalRes.app
@@ -645,6 +708,8 @@ export function extendResponse(res: ServerResponse): Response {
         }
 
         // Send HTML response
+        // Reset pending flag before calling send() to avoid self-blocking
+        ;(this as any)._responsePending = false
         this.setHeader('Content-Type', 'text/html; charset=utf-8')
         this.send(html)
         return
@@ -720,6 +785,8 @@ export function extendResponse(res: ServerResponse): Response {
       }
 
       // Send HTML response
+      // Reset pending flag before calling send() to avoid self-blocking
+      ;(this as any)._responsePending = false
       this.setHeader('Content-Type', 'text/html; charset=utf-8')
       this.send(html)
     } catch (err: any) {

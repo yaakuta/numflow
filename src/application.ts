@@ -1148,8 +1148,48 @@ export class Application extends EventEmitter {
     const scannedFeatures = await scanFeatures(directory, options)
     console.log(`Found ${scannedFeatures.length} features in ${directory}`)
 
+    // Sort features by route priority to prevent conflicts:
+    // 1. Static routes (/blog/search) - Highest priority
+    // 2. Parametric routes (/blog/:slug) - Medium priority
+    // 3. Wildcard routes (/blog/*) - Lowest priority
+    //
+    // This ensures that specific routes are registered before dynamic routes,
+    // preventing conflicts where /blog/search would be captured by /blog/:slug
+    const sortedFeatures = scannedFeatures.sort((a, b) => {
+      const aInfo = a.feature.getInfo()
+      const bInfo = b.feature.getInfo()
+      const aPath = aInfo.path || '/'
+      const bPath = bInfo.path || '/'
+
+      // Calculate priority score (lower = higher priority)
+      const getPriority = (path: string): number => {
+        if (path.includes('*')) return 3  // Wildcard - lowest priority
+        if (path.includes(':')) return 2  // Parametric - medium priority
+        return 1                           // Static - highest priority
+      }
+
+      const aPriority = getPriority(aPath)
+      const bPriority = getPriority(bPath)
+
+      // Sort by priority (ascending - lower number = higher priority)
+      if (aPriority !== bPriority) {
+        return aPriority - bPriority
+      }
+
+      // Same priority: sort by path length (longer = more specific = higher priority)
+      // This handles cases like /api/users/profile vs /api/users
+      const aLength = aPath.split('/').length
+      const bLength = bPath.split('/').length
+      if (aLength !== bLength) {
+        return bLength - aLength  // Descending - longer paths first
+      }
+
+      // Same priority and length: sort alphabetically for consistency
+      return aPath.localeCompare(bPath)
+    })
+
     // Register each Feature (sequentially with await)
-    for (const { feature, relativePath } of scannedFeatures) {
+    for (const { feature, relativePath } of sortedFeatures) {
       try {
         await this._registerFeatureAsync(feature)
         const info = feature.getInfo()

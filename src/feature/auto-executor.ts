@@ -138,7 +138,10 @@ export class AutoExecutor {
         }
 
         // Performance optimization: res.headersSent check (early response detection)
-        if (res.headersSent) {
+        // Also check _responsePending flag to prevent race conditions with async response methods
+        // (res.render(), res.sendFile(), res.download() without await)
+        const responsePending = (res as any)._responsePending
+        if (res.headersSent || responsePending) {
           this.logSummary(true)
           return context
         }
