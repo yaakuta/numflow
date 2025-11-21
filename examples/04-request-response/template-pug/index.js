@@ -4,7 +4,7 @@
  * Demonstrates how to use the Pug template engine in the Numflow framework.
  */
 
-const numflow = require('../../../dist/cjs/index.js')
+const numflow = require("numflow")
 
 const app = numflow()
 

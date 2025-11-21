@@ -31,7 +31,7 @@
  * curl http://localhost:3000/api/not-found
  */
 
-const numflow = require('../../dist/cjs/index.js')
+const numflow = require("numflow")
 
 const app = numflow()
 

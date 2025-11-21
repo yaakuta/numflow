@@ -19,7 +19,7 @@
  * curl http://localhost:3000/greet?name=Bob&language=ko
  */
 
-const numflow = require('../../../dist/cjs/index.js')
+const numflow = require("numflow")
 
 const app = numflow()
 

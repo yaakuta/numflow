@@ -16,7 +16,7 @@
  * Browser: http://localhost:3000/products
  */
 
-const numflow = require('../../../dist/cjs/index.js')
+const numflow = require("numflow")
 const path = require('path')
 const serveStatic = require('serve-static')
 

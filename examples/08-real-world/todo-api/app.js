@@ -5,7 +5,7 @@
  * Convention over Configuration을 따라 폴더 구조만으로 API를 자동 생성합니다.
  */
 
-const numflow = require('../../../dist/cjs/index.js')
+const numflow = require("numflow")
 const path = require('path')
 
 // Numflow 애플리케이션 생성

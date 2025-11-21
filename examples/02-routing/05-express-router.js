@@ -3,7 +3,7 @@
  * Numflow provides the same Router API as Express.
  */
 
-const numflow = require('../../dist/cjs/index.js')
+const numflow = require("numflow")
 const app = numflow()
 
 // ===================================

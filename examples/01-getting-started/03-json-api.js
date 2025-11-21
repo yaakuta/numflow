@@ -34,7 +34,7 @@
  * curl -X DELETE http://localhost:3000/api/users/1
  */
 
-const numflow = require('../../dist/cjs/index.js')
+const numflow = require("numflow")
 
 const app = numflow()
 

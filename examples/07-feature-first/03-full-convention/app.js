@@ -20,7 +20,7 @@
  *   -d '{"productId":"PROD001","quantity":2,"userId":"USER123"}'
  */
 
-const numflow = require('../../../dist/cjs/index.js')
+const numflow = require("numflow")
 
 const app = numflow()
 

@@ -25,7 +25,7 @@
  *   -d '{"name":"World"}'
  */
 
-const numflow = require('../../dist/cjs/index.js')
+const numflow = require("numflow")
 const { feature } = numflow
 
 const app = numflow()

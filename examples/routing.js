@@ -3,7 +3,7 @@
  * Demonstrates various routing features of the Numflow framework
  */
 
-const numflow = require('../dist/cjs/index.js')
+const numflow = require("numflow")
 
 const app = numflow()
 

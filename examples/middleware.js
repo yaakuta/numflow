@@ -14,7 +14,7 @@
  *   curl http://localhost:3000/error
  */
 
-const numflow = require('../dist/cjs/index.js')
+const numflow = require("numflow")
 
 const app = numflow()
 

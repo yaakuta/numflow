@@ -9,7 +9,7 @@
  * No manual configuration needed!
  */
 
-const numflow = require('../../../../../../dist/cjs/index.js')
+const numflow = require("numflow")
 
 module.exports = numflow.feature({
   // method and path are auto-inferred from Convention!

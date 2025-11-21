@@ -19,7 +19,7 @@
  *   -d '{"from":"ACC001","to":"ACC002","amount":5000}'
  */
 
-const numflow = require('../../../dist/cjs/index.js')
+const numflow = require("numflow")
 
 const app = numflow()
 

@@ -3,6 +3,6 @@
   "version": "1.0.0",
   "main": "app.js",
   "dependencies": {
-    "numbers": "file:../../.."
+    "numflow": "^0.2.10"
   }
 }

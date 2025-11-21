@@ -14,7 +14,7 @@
  * All configuration is automatically inferred!
  */
 
-const numflow = require("../../../../../../../dist/cjs/index.js")
+const numflow = require("numflow")
 
 module.exports = numflow.feature({
   // method: 'POST' (auto-inferred from folder name 'post')

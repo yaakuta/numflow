@@ -1,4 +1,4 @@
-const numflow = require('../../../../../../../../dist/cjs/index.js')
+const numflow = require("numflow")
 
 /**
  * POST /api/v1/orders - Create Order

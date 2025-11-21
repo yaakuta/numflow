@@ -19,7 +19,7 @@
  * curl http://localhost:3000/posts/2024/10/hello-world
  */
 
-const numflow = require('../../dist/cjs/index.js')
+const numflow = require("numflow")
 
 const app = numflow()
 

@@ -6,7 +6,7 @@
  */
 
 // Load Numflow framework
-const numflow = require('../dist/cjs/index.js')
+const numflow = require("numflow")
 
 // Create Application instance
 const app = numflow()

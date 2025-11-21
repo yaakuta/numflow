@@ -15,5 +15,8 @@
     "example"
   ],
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "numflow": "^0.2.10"
+  }
 }

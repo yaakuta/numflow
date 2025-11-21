@@ -1,4 +1,4 @@
-const numflow = require('../../../../../../../../../dist/cjs/index.js')
+const numflow = require("numflow")
 
 /**
  * GET /api/v1/orders/:id - Get Order by ID

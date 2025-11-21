@@ -1,4 +1,4 @@
-const numflow = require("../../../../../../../dist/cjs/index.js")
+const numflow = require("numflow")
 
 module.exports = numflow.feature({
   contextInitializer: (ctx, req, res) => {

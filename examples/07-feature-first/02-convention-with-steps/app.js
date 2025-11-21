@@ -19,7 +19,7 @@
  *   -d '{"name":"Bob","email":"bob@example.com","age":30}'
  */
 
-const numflow = require('../../../dist/cjs/index.js')
+const numflow = require("numflow")
 
 const app = numflow()
 

@@ -6,10 +6,10 @@
  */
 
 // Import Numflow framework
-import numbers from '../src/index'
+import numflow from 'numflow'
 
 // Create application instance
-const app = numbers()
+const app = numflow()
 
 // Port configuration
 const PORT: number = 3002

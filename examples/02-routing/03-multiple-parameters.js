@@ -25,7 +25,7 @@
  * curl "http://localhost:3000/posts/101/comments?sortBy=date&order=desc"
  */
 
-const numflow = require('../../dist/cjs/index.js')
+const numflow = require("numflow")
 
 const app = numflow()
 

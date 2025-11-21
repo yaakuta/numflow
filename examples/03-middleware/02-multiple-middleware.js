@@ -30,7 +30,7 @@
  * curl -H "Authorization: admin-token" http://localhost:3000/api/admin
  */
 
-const numflow = require('../../dist/cjs/index.js')
+const numflow = require("numflow")
 
 const app = numflow()
 

@@ -17,7 +17,7 @@
  * Or curl http://localhost:3000
  */
 
-const numflow = require('../../dist/cjs/index.js')
+const numflow = require("numflow")
 
 // 1. Create Numflow application
 const app = numflow()

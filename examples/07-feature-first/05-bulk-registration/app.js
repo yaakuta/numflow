@@ -8,7 +8,7 @@
  * HTTP method and path from folder structure.
  */
 
-const numflow = require('../../../dist/cjs/index.js')
+const numflow = require("numflow")
 
 const app = numflow()
 
