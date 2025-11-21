@@ -33,12 +33,6 @@ app.use(numflow.static(path.join(__dirname, "public")));
 // ===== Body Parser =====
 // Numflow has built-in automatic body parser!
 
-// ===== GET /todos - HTML rendering (normal route) =====
-app.get("/todos", (req, res) => {
-  const todos = global.todos || [];
-  res.render("index", { todos });
-});
-
 // ===== Error handler =====
 app.onError((err, req, res) => {
   console.error("Error:", err);
@@ -50,7 +44,7 @@ app.onError((err, req, res) => {
 
 // ===== Start server (app.listen() method) =====
 // Bulk Registration! Register all Features with one line!
-// Register only POST, PUT, DELETE as Features
+// Register all routes as Features: GET /, POST /todos, PUT /todos/:id, DELETE /todos/:id
 app.registerFeatures("./features");
 
 // app.listen() automatically waits for Feature registration completion before starting server
