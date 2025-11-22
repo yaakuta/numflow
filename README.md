@@ -10,6 +10,34 @@ Numflow is a Node.js web framework that is fully compatible with Express 5.x API
 
 ---
 
+## Why Numflow?
+
+While most frameworks focus on "how to implement", Numflow focuses on **"how to develop and maintain"**.
+
+As services grow, code becomes complex and business logic gets scattered across multiple files. If you've ever wondered "Where does the logic for this API start and end?", Numflow is the answer.
+
+### 1. Folder Structure IS the API Specification
+Just by looking at `features/api/orders/@post`, you instantly know it's the `POST /api/orders` API.
+No need to hunt for router configurations. The folder name and structure are the URL and HTTP method.
+
+### 2. Code is the Living Design Document
+Keeping design documents and code in sync is nearly impossible. In Numflow, directories and filenames ARE the current implementation and the design.
+Even after years of maintenance, you can grasp exactly how the system works just by looking at the directory structure—it looks just like a design document.
+- `100-validate.js`
+- `200-check-stock.js`
+- `300-payment.js`
+
+### 3. Flexible Structure for Changes
+Need to add logic in the middle? No need to rewrite existing code.
+Just create a `150-check-coupon.js` file. Numflow automatically executes it between 100 and 200.
+Deleting a feature is as simple as deleting a file. Respond quickly to business requirements without worrying about side effects.
+
+### 4. Perfect Cohesion
+All related logic (validation, DB operations, async tasks, etc.) is gathered in one folder.
+No more wandering through files to modify a feature.
+
+---
+
 ## Key Features
 
 ### Full Express 5.x Compatibility
