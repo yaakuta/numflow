@@ -123,7 +123,9 @@ export function extendResponse(res: ServerResponse): Response {
     // Handle boolean/number
     if (typeof body === 'boolean' || typeof body === 'number') {
       const str = String(body)
-      this.setHeader('Content-Type', 'text/plain; charset=utf-8')
+      if (!this.getHeader('Content-Type')) {
+        this.setHeader('Content-Type', 'text/plain; charset=utf-8')
+      }
       this.setHeader('Content-Length', Buffer.byteLength(str).toString())
       this.end(str)
       return
@@ -787,7 +789,12 @@ export function extendResponse(res: ServerResponse): Response {
       // Send HTML response
       // Reset pending flag before calling send() to avoid self-blocking
       ;(this as any)._responsePending = false
-      this.setHeader('Content-Type', 'text/html; charset=utf-8')
+
+      // Only set Content-Type if not already set (preserve user's Content-Type)
+      if (!this.getHeader('Content-Type')) {
+        this.setHeader('Content-Type', 'text/html; charset=utf-8')
+      }
+
       this.send(html)
     } catch (err: any) {
       // Call callback with error if provided
