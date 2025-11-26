@@ -18,10 +18,23 @@ describe('WebSocket Integration (ws library)', () => {
   })
 
   afterEach(async () => {
-    // Close WebSocket server first
+    // First, forcefully close all WebSocket client connections
     if (wsServer) {
+      for (const client of wsServer.clients) {
+        try {
+          client.terminate()
+        } catch {
+          // Ignore errors during cleanup
+        }
+      }
+
+      // Then close WebSocket server with timeout
       await new Promise<void>((resolve) => {
-        wsServer.close(() => resolve())
+        const timeout = setTimeout(() => resolve(), 1000)
+        wsServer.close(() => {
+          clearTimeout(timeout)
+          resolve()
+        })
       })
       wsServer = null as any
     }
@@ -32,7 +45,7 @@ describe('WebSocket Integration (ws library)', () => {
         server.closeAllConnections()
       }
       await new Promise<void>((resolve) => {
-        const timeout = setTimeout(() => resolve(), 2000)
+        const timeout = setTimeout(() => resolve(), 1000)
         server.close(() => {
           clearTimeout(timeout)
           resolve()
@@ -140,34 +153,44 @@ describe('WebSocket Integration (ws library)', () => {
 
     let client1Received = false
     let client2Received = false
+    let bothConnected = false
 
-    client1.on('open', () => {
-      client1.send('Hello from client1')
-    })
-
-    client1.on('message', (data) => {
-      expect(data.toString()).toBe('Broadcast: Hello from client1')
-      client1Received = true
+    const checkDone = () => {
       if (client1Received && client2Received) {
         client1.close()
         client2.close()
         done()
       }
+    }
+
+    // Wait for both clients to be connected before sending message
+    let connectedCount = 0
+    const onOpen = () => {
+      connectedCount++
+      if (connectedCount === 2 && !bothConnected) {
+        bothConnected = true
+        client1.send('Hello from client1')
+      }
+    }
+
+    client1.on('open', onOpen)
+    client2.on('open', onOpen)
+
+    client1.on('message', (data) => {
+      expect(data.toString()).toBe('Broadcast: Hello from client1')
+      client1Received = true
+      checkDone()
     })
 
     client2.on('message', (data) => {
       expect(data.toString()).toBe('Broadcast: Hello from client1')
       client2Received = true
-      if (client1Received && client2Received) {
-        client1.close()
-        client2.close()
-        done()
-      }
+      checkDone()
     })
 
     client1.on('error', done)
     client2.on('error', done)
-  })
+  }, 10000)
 
   it('should support both HTTP routes and WebSocket on same port', (done) => {
     // HTTP routes

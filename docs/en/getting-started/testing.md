@@ -249,7 +249,7 @@ app.get('/error', (req, res) => {
   throw new Error('Test error')
 })
 
-app.onError((err, req, res) => {
+app.use((err, req, res, next) => {
   res.status(500).json({
     error: err.message
   })

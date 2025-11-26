@@ -203,6 +203,20 @@ export class FeatureScanner {
         typeof feature.getInfo === 'function' &&
         typeof feature.initialize === 'function'
       ) {
+        // Update conventions using scanner's baseDir knowledge
+        // This fixes the case where feature() couldn't find the features base directory
+        try {
+          const featureDir = path.dirname(filePath)
+          const conventions = ConventionResolver.resolveConventions(filePath, this.baseDir || undefined)
+
+          if (typeof feature.updateConventions === 'function') {
+            feature.updateConventions(conventions.method, conventions.path, featureDir)
+          }
+        } catch {
+          // Convention resolution failed (e.g., non-@ prefixed folder)
+          // Feature was already initialized with its own convention resolution
+        }
+
         return feature as Feature
       }
 

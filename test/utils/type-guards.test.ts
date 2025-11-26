@@ -13,7 +13,6 @@ import {
   hasQuery,
   hasReq,
   hasApp,
-  hasStatusCode,
   hasCode,
   hasValidationErrors,
 } from '../../src/utils/type-guards'
@@ -145,25 +144,6 @@ describe('Type Guards', () => {
     it('should return false if app is not an object', () => {
       const res = { app: 'not-object' }
       expect(hasApp(res as any)).toBe(false)
-    })
-  })
-
-  describe('hasStatusCode', () => {
-    it('Error with statusCode field as number should return true', () => {
-      const error = new Error('Test')
-      ;(error as any).statusCode = 404
-      expect(hasStatusCode(error)).toBe(true)
-    })
-
-    it('Error without statusCode field should return false', () => {
-      const error = new Error('Test')
-      expect(hasStatusCode(error)).toBe(false)
-    })
-
-    it('should return false if statusCode is not a number', () => {
-      const error = new Error('Test')
-      ;(error as any).statusCode = '404'
-      expect(hasStatusCode(error)).toBe(false)
     })
   })
 

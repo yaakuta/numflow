@@ -7,7 +7,7 @@ import { extendRequest } from './request-extensions.js'
 import { extendResponse } from './response-extensions.js'
 import { autoBodyParser, BodyParserOptions } from './body-parser.js'
 import { Layer } from './layer.js'
-import { defaultErrorHandler, wrapErrorHandler, ErrorHandler as GlobalErrorHandler } from './errors/error-handler.js'
+import { defaultErrorHandler } from './errors/error-handler.js'
 import { asInternalRouter, asInternalResponse } from './utils/type-casting.js'
 
 /**
@@ -23,7 +23,6 @@ export class Application extends EventEmitter {
   private bodyParserEnabled = true
   private bodyParserOptions: BodyParserOptions = { limit: '1mb' }
   private middlewares: Layer[] = []
-  private errorHandler: GlobalErrorHandler = defaultErrorHandler
   private featureRegistrationPromises: Promise<this>[] = []
 
   /**
@@ -658,40 +657,11 @@ export class Application extends EventEmitter {
   }
 
   /**
-   * Register global error handler
+   * Call default error handler
    *
-   * Unified error handling
-   * Handles all errors from regular routes and Features
-   *
-   * @param handler - Error handler function
-   * @returns Application instance (for chaining)
-   *
-   * @example
-   * // Basic error handling
-   * app.onError((err, req, res) => {
-   *   console.error(err)
-   *   res.status(500).json({ error: err.message })
-   * })
-   *
-   * @example
-   * // Handle errors by type
-   * app.onError((err, req, res) => {
-   *   if (err instanceof ValidationError) {
-   *     return res.status(400).json({ error: err.message })
-   *   }
-   *   if (err instanceof NotFoundError) {
-   *     return res.status(404).json({ error: err.message })
-   *   }
-   *   res.status(500).json({ error: 'Internal Server Error' })
-   * })
-   */
-  onError(handler: GlobalErrorHandler): this {
-    this.errorHandler = wrapErrorHandler(handler)
-    return this
-  }
-
-  /**
-   * Call error handler
+   * Called when no error middleware handles the error.
+   * Use Express-style error middleware instead:
+   * app.use((err, req, res, next) => { ... })
    *
    * @private
    * @param err - Error object
@@ -699,7 +669,7 @@ export class Application extends EventEmitter {
    * @param res - Response object
    */
   private handleError(err: Error, req: IncomingMessage, res: ServerResponse): void {
-    this.errorHandler(err, req, res)
+    defaultErrorHandler(err, req, res)
   }
 
   /**

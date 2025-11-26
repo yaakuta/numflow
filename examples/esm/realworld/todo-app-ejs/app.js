@@ -24,10 +24,11 @@ app.set('views', path.join(__dirname, 'views'))
 // ===== Serve static files =====
 app.use(numflow.static(path.join(__dirname, 'public')))
 
-// ===== Error handler =====
-app.onError((err, req, res) => {
+// ===== Express-style Error Middleware =====
+app.use((err, req, res, next) => {
   console.error('Error:', err)
-  res.status(500).json({
+  const statusCode = err.statusCode || 500
+  res.status(statusCode).json({
     error: err.message,
     stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
   })

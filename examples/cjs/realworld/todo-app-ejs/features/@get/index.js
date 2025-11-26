@@ -19,7 +19,8 @@ module.exports = numflow.feature({
   // Error handling with EJS template
   onError: async (error, ctx, req, res) => {
     console.error('Error loading TODO list:', error.message)
-    res.status(500).render('error', {
+    const statusCode = error.statusCode || 500
+    res.status(statusCode).render('error', {
       errorMessage: error.message
     })
   }

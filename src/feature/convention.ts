@@ -296,9 +296,16 @@ export class ConventionResolver {
         // Skip this file (convention.ts/convention.js)
         if (fileName.includes('/convention.')) continue
 
-        // Skip numflow framework files (dist/*/feature/index.*)
-        // But NOT user's feature files!
-        if (fileName.includes('/dist/') && fileName.includes('/feature/') && fileName.includes('/index.')) {
+        // Skip framework internal files (dist/cjs/, dist/esm/, src/feature/)
+        // This ensures we get the actual user's feature file, not the compiled framework code
+        if (
+          fileName.includes('/dist/cjs/') ||
+          fileName.includes('/dist/esm/') ||
+          fileName.includes('/src/feature/feature.') ||
+          fileName.includes('/src/feature/feature-scanner.') ||
+          fileName.includes('/src/feature/auto-') ||
+          fileName.includes('/src/feature/index.')
+        ) {
           continue
         }
 
@@ -311,6 +318,41 @@ export class ConventionResolver {
     } finally {
       Error.prepareStackTrace = originalPrepareStackTrace
     }
+  }
+
+  /**
+   * Infer features base directory from feature directory
+   *
+   * Walks up the directory tree to find the @{method} folder,
+   * then returns its parent directory as the features base.
+   *
+   * @param featureDir - Feature directory path
+   * @returns Inferred features base directory
+   *
+   * @example
+   * inferFeaturesBase('/path/to/test-fixtures/@get')
+   * // -> '/path/to/test-fixtures'
+   *
+   * inferFeaturesBase('/path/to/api/users/@post')
+   * // -> '/path/to/api/users'
+   */
+  static inferFeaturesBase(featureDir: string): string {
+    let currentPath = featureDir
+
+    // Walk up to find @{method} folder
+    while (currentPath !== path.parse(currentPath).root) {
+      const dirName = path.basename(currentPath)
+
+      if (this.isHttpMethod(dirName)) {
+        // Found @{method} folder, return its parent
+        return path.dirname(currentPath)
+      }
+
+      currentPath = path.dirname(currentPath)
+    }
+
+    // Fallback: If no @{method} folder found, return parent of featureDir
+    return path.dirname(featureDir)
   }
 
   /**

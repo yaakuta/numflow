@@ -82,10 +82,6 @@ export { RETRY, isRetrySignal, RetrySignal } from './feature/retry.js'
 // Export Router types
 export * from './types/index.js'
 
-// Export Error classes
-// ValidationError exported here (to prevent conflict with Feature's ValidationError)
-export * from './errors/index.js'
-
 // Export Body Parsers
 export { json, urlencoded, raw, text } from './body-parser.js'
 export type { BodyParserOptions } from './body-parser.js'
@@ -112,18 +108,6 @@ export default numflow
 // CommonJS compatibility
 // Ignored in TypeScript, only works in built JS
 if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
-  // @ts-ignore - CommonJS compatibility
-  import('./errors/index.js').then((exports) => {
-    // Export all error classes for CommonJS
-    // @ts-ignore - CommonJS compatibility
-    Object.keys(exports).forEach(key => {
-      // @ts-ignore - CommonJS compatibility
-      module.exports[key] = exports[key as keyof typeof exports]
-    })
-  }).catch(() => {
-    // Silently ignore errors in ESM environment
-  })
-
   // @ts-ignore - CommonJS compatibility
   module.exports = numflow
   // @ts-ignore - CommonJS compatibility

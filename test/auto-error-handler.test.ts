@@ -1,19 +1,17 @@
 /**
  * Auto-Error Handler Test
+ *
+ * Simplified Express-style error handling tests
  */
 
 import { ServerResponse } from 'http'
-import { AutoErrorHandler } from '../src/feature/auto-error-handler'
-import { FeatureError, FeatureValidationError, StepInfo } from '../src/feature/types'
-
-// Use FeatureValidationError as ValidationError for backward compatibility tests
-const ValidationError = FeatureValidationError
+import { AutoErrorHandler } from '../src/feature/auto-error-handler.js'
+import { FeatureError, StepInfo } from '../src/feature/types.js'
 
 describe('Auto-Error Handler', () => {
   let mockRes: ServerResponse
 
   beforeEach(() => {
-    // Mock ServerResponse
     mockRes = {
       statusCode: 0,
       setHeader: jest.fn(),
@@ -39,26 +37,26 @@ describe('Auto-Error Handler', () => {
       expect(mockRes.end).toHaveBeenCalled()
 
       const response = JSON.parse((mockRes.end as jest.Mock).mock.calls[0][0])
-      expect(response.success).toBe(false)
-      expect(response.error).toBe('FeatureError')
-      expect(response.message).toBe('Feature execution failed')
-      expect(response.details.step.number).toBe(200)
-      expect(response.details.step.name).toBe('200-process.js')
+      expect(response.error.message).toBe('Feature execution failed')
+      expect(response.error.statusCode).toBe(500)
+      expect(response.error.step.number).toBe(200)
+      expect(response.error.step.name).toBe('200-process.js')
     })
 
-    it('ValidationError should return 400 response', () => {
-      const error = new ValidationError('Invalid input data')
+    it('should handle error with statusCode property', () => {
+      const error = new Error('Not found') as Error & { statusCode: number }
+      error.statusCode = 404
 
       AutoErrorHandler.handle(error, mockRes)
 
-      expect(mockRes.statusCode).toBe(400)
+      expect(mockRes.statusCode).toBe(404)
 
       const response = JSON.parse((mockRes.end as jest.Mock).mock.calls[0][0])
-      expect(response.error).toBe('ValidationError')
-      expect(response.message).toBe('Invalid input data')
+      expect(response.error.message).toBe('Not found')
+      expect(response.error.statusCode).toBe(404)
     })
 
-    it('Generic Error should return 500 response', () => {
+    it('should default to 500 for generic Error', () => {
       const error = new Error('Unexpected error')
 
       AutoErrorHandler.handle(error, mockRes)
@@ -66,26 +64,8 @@ describe('Auto-Error Handler', () => {
       expect(mockRes.statusCode).toBe(500)
 
       const response = JSON.parse((mockRes.end as jest.Mock).mock.calls[0][0])
-      expect(response.error).toBe('Error')
-      expect(response.message).toBe('Unexpected error')
-    })
-  })
-
-  describe('statusCode mapping by error type', () => {
-    it('should use FeatureError statusCode correctly', () => {
-      const error = new FeatureError('Custom error', undefined, undefined, undefined, 403)
-
-      AutoErrorHandler.handle(error, mockRes)
-
-      expect(mockRes.statusCode).toBe(403)
-    })
-
-    it('ValidationError should always return 400', () => {
-      const error = new ValidationError('Validation failed')
-
-      AutoErrorHandler.handle(error, mockRes)
-
-      expect(mockRes.statusCode).toBe(400)
+      expect(response.error.message).toBe('Unexpected error')
+      expect(response.error.statusCode).toBe(500)
     })
   })
 
@@ -103,18 +83,18 @@ describe('Auto-Error Handler', () => {
       AutoErrorHandler.handle(error, mockRes)
 
       const response = JSON.parse((mockRes.end as jest.Mock).mock.calls[0][0])
-      expect(response.details).toBeDefined()
-      expect(response.details.step.number).toBe(300)
-      expect(response.details.step.name).toBe('300-validate.js')
+      expect(response.error.step).toBeDefined()
+      expect(response.error.step.number).toBe(300)
+      expect(response.error.step.name).toBe('300-validate.js')
     })
 
-    it('should not include details if FeatureError has no step info', () => {
+    it('should not include step if FeatureError has no step info', () => {
       const error = new FeatureError('General error')
 
       AutoErrorHandler.handle(error, mockRes)
 
       const response = JSON.parse((mockRes.end as jest.Mock).mock.calls[0][0])
-      expect(response.details).toBeUndefined()
+      expect(response.error.step).toBeUndefined()
     })
   })
 
@@ -133,8 +113,8 @@ describe('Auto-Error Handler', () => {
       AutoErrorHandler.handle(error, mockRes)
 
       const response = JSON.parse((mockRes.end as jest.Mock).mock.calls[0][0])
-      expect(response.stack).toBeDefined()
-      expect(response.stack).toContain('Error: Test error')
+      expect(response.error.stack).toBeDefined()
+      expect(response.error.stack).toContain('Error: Test error')
     })
 
     it('should not include stack trace in production environment', () => {
@@ -145,20 +125,25 @@ describe('Auto-Error Handler', () => {
       AutoErrorHandler.handle(error, mockRes)
 
       const response = JSON.parse((mockRes.end as jest.Mock).mock.calls[0][0])
-      expect(response.stack).toBeUndefined()
+      expect(response.error.stack).toBeUndefined()
+    })
+
+    it('should prefer original error stack for FeatureError in development', () => {
+      process.env.NODE_ENV = 'development'
+
+      const originalError = new Error('Original error')
+      const step: StepInfo = { number: 100, name: '100-test.js', path: '/path', fn: async () => {} }
+      const featureError = new FeatureError(originalError.message, originalError, step)
+
+      AutoErrorHandler.handle(featureError, mockRes)
+
+      const response = JSON.parse((mockRes.end as jest.Mock).mock.calls[0][0])
+      expect(response.error.stack).toBeDefined()
+      expect(response.error.stack).toContain('Original error')
     })
   })
 
   describe('Response format', () => {
-    it('all error responses should include success: false', () => {
-      const error = new Error('Test error')
-
-      AutoErrorHandler.handle(error, mockRes)
-
-      const response = JSON.parse((mockRes.end as jest.Mock).mock.calls[0][0])
-      expect(response.success).toBe(false)
-    })
-
     it('error response should have Content-Type as application/json', () => {
       const error = new Error('Test error')
 
@@ -185,17 +170,7 @@ describe('Auto-Error Handler', () => {
       AutoErrorHandler.handle(error, mockRes)
 
       const response = JSON.parse((mockRes.end as jest.Mock).mock.calls[0][0])
-      expect(response.message).toBe('An unexpected error occurred')
-    })
-
-    it('should handle long error messages correctly', () => {
-      const longMessage = 'A'.repeat(1000)
-      const error = new Error(longMessage)
-
-      AutoErrorHandler.handle(error, mockRes)
-
-      const response = JSON.parse((mockRes.end as jest.Mock).mock.calls[0][0])
-      expect(response.message).toBe(longMessage)
+      expect(response.error.message).toBe('An unexpected error occurred')
     })
 
     it('should handle error messages with special characters correctly', () => {
@@ -205,22 +180,11 @@ describe('Auto-Error Handler', () => {
       AutoErrorHandler.handle(error, mockRes)
 
       const response = JSON.parse((mockRes.end as jest.Mock).mock.calls[0][0])
-      expect(response.message).toBe(specialMessage)
+      expect(response.error.message).toBe(specialMessage)
     })
   })
 
-  describe('Custom FeatureError', () => {
-    it('should handle FeatureError with custom statusCode', () => {
-      const error = new FeatureError('Not found', undefined, undefined, undefined, 404)
-
-      AutoErrorHandler.handle(error, mockRes)
-
-      expect(mockRes.statusCode).toBe(404)
-
-      const response = JSON.parse((mockRes.end as jest.Mock).mock.calls[0][0])
-      expect(response.message).toBe('Not found')
-    })
-
+  describe('Custom FeatureError with different status codes', () => {
     it('should handle 401 Unauthorized error', () => {
       const error = new FeatureError('Unauthorized', undefined, undefined, undefined, 401)
 
@@ -235,6 +199,17 @@ describe('Auto-Error Handler', () => {
       AutoErrorHandler.handle(error, mockRes)
 
       expect(mockRes.statusCode).toBe(403)
+    })
+
+    it('should handle 404 Not Found error', () => {
+      const error = new FeatureError('Not found', undefined, undefined, undefined, 404)
+
+      AutoErrorHandler.handle(error, mockRes)
+
+      expect(mockRes.statusCode).toBe(404)
+
+      const response = JSON.parse((mockRes.end as jest.Mock).mock.calls[0][0])
+      expect(response.error.message).toBe('Not found')
     })
   })
 })

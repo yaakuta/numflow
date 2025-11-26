@@ -730,16 +730,15 @@ console.log(app.mountpath) // '' (empty string for unmounted apps)
 
 ## Error Handling
 
-### app.onError(handler)
+Numflow uses Express-style error handling middleware with 4 parameters.
 
-Registers a global error handler. All errors from routes, middleware, and Features are passed to this handler.
+### Error Middleware
 
-**Parameters:**
-- `handler` (ErrorHandler): Error handler function `(err, req, res) => void`
+Register error handling middleware using `app.use()` with a 4-parameter function:
 
 **Basic Example:**
 ```javascript
-app.onError((err, req, res) => {
+app.use((err, req, res, next) => {
   console.error(err)
   res.status(500).json({ error: 'Internal Server Error' })
 })
@@ -751,7 +750,7 @@ const numflow = require('numflow')
 const { isHttpError } = numflow
 const app = numflow()
 
-app.onError((err, req, res) => {
+app.use((err, req, res, next) => {
   console.error(err)
 
   // Use isHttpError() for duck typing - works across module instances
@@ -773,7 +772,7 @@ app.onError((err, req, res) => {
 ```javascript
 if (process.env.NODE_ENV === 'production') {
   // Production: safe error messages
-  app.onError((err, req, res) => {
+  app.use((err, req, res, next) => {
     console.error('[ERROR]', err)
     res.status(err.statusCode || 500).json({
       error: err.message || 'Internal Server Error'
@@ -781,7 +780,7 @@ if (process.env.NODE_ENV === 'production') {
   })
 } else {
   // Development: include stack trace
-  app.onError((err, req, res) => {
+  app.use((err, req, res, next) => {
     res.status(err.statusCode || 500).json({
       error: {
         message: err.message,
@@ -792,14 +791,13 @@ if (process.env.NODE_ENV === 'production') {
 }
 ```
 
-**Returns:** `Application` (supports chaining)
-
 **Notes:**
-- Error handler can only be registered once
-- If not registered, a default error handler is used
-- Feature errors are also passed to this handler
+- Error middleware must have exactly 4 parameters: `(err, req, res, next)`
+- Error middleware should be registered after all routes and regular middleware
+- Multiple error middleware can be registered and will execute in order
+- Feature errors are also passed to error middleware
 
-**See also:** [Error Handling Guide](../guides/error-handling.md)
+**See also:** [Error Handling Guide](../getting-started/error-handling.md)
 
 ---
 

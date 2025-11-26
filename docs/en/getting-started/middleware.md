@@ -216,16 +216,17 @@ app.use((err, req, res, next) => {
 app.listen(3000)
 ```
 
-### Using onError() for Global Error Handling
+### Using Express-Style Error Middleware for Global Error Handling
 
-Numflow provides `app.onError()` for global error handling:
+Numflow uses Express-style error middleware with 4 parameters for global error handling:
 
 ```javascript
 const numflow = require('numflow')
 const { isHttpError } = numflow
 const app = numflow()
 
-app.onError((err, req, res) => {
+// Error middleware must have 4 parameters
+app.use((err, req, res, next) => {
   console.error(err)
 
   // Use isHttpError() for duck typing - works across module instances
@@ -249,6 +250,8 @@ app.get('/users/:id', async (req, res) => {
   res.json(user)
 })
 ```
+
+**Note:** Error middleware must have exactly 4 parameters `(err, req, res, next)` to be recognized as error middleware.
 
 ---
 
@@ -546,7 +549,7 @@ app.post('/api/posts', requireAuth, (req, res) => {
 })
 
 // 8. Global error handler (last)
-app.onError((err, req, res) => {
+app.use((err, req, res, next) => {
   console.error(err)
   res.status(500).json({ error: 'Internal Server Error' })
 })

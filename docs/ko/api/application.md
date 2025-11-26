@@ -15,7 +15,6 @@
 - [app.head(path, handler)](#appheadpath-handler)
 - [app.all(path, handler)](#appallpath-handler)
 - [app.route(path)](#approutepath)
-- [app.onError(handler)](#apponerrorhandler)
 - [app.set(key, value)](#appsetkey-value)
 - [app.get(key)](#appgetkey)
 - [app.enable(key) / app.disable(key)](#appenablekey--appdisablekey)
@@ -369,18 +368,29 @@ app.route('/users/:id')
 **반환값**: `RouteChain`
 
 
-### app.onError(handler)
+## 에러 처리
 
-글로벌 에러 핸들러를 등록합니다. 모든 라우트와 미들웨어에서 발생한 에러를 중앙에서 처리합니다.
+Numflow는 4개의 매개변수를 가진 Express 스타일 에러 미들웨어를 사용합니다.
 
+### 에러 미들웨어
 
-**JavaScript (CommonJS):**
+`app.use()`에 4개의 매개변수를 가진 함수를 전달하여 에러 처리 미들웨어를 등록합니다:
+
+**기본 예제:**
+```javascript
+app.use((err, req, res, next) => {
+  console.error(err)
+  res.status(500).json({ error: 'Internal server error' })
+})
+```
+
+**에러 타입별 처리:**
 ```javascript
 const numflow = require('numflow')
 const { isHttpError } = numflow
 const app = numflow()
 
-app.onError((err, req, res) => {
+app.use((err, req, res, next) => {
   console.error(err)
 
   // duck typing을 위해 isHttpError() 사용 - 모듈 인스턴스 간에도 동작
@@ -397,37 +407,13 @@ app.onError((err, req, res) => {
 })
 ```
 
-**TypeScript:**
-```typescript
-import numflow, { isHttpError, ErrorHandler } from 'numflow'
-
-const app = numflow()
-
-const errorHandler: ErrorHandler = (err, req, res) => {
-  console.error(err)
-
-  // duck typing을 위해 isHttpError() 사용 - 모듈 인스턴스 간에도 동작
-  if (isHttpError(err)) {
-    return res.status(err.statusCode).json({
-      error: err.message,
-      ...(err.validationErrors && { validationErrors: err.validationErrors }),
-      ...(err.code && { code: err.code })
-    })
-  }
-
-  res.status(500).json({ error: 'Internal server error' })
-}
-
-app.onError(errorHandler)
-```
-
 > **참고**: 서로 다른 모듈 인스턴스 간 최대 호환성을 위해 `instanceof` 대신 `isHttpError()`를 사용하세요. 자세한 내용은 [에러 처리](../getting-started/error-handling.md#에러-유틸리티)를 참조하세요.
 
 **개발/프로덕션 환경 분기:**
 ```javascript
 if (process.env.NODE_ENV !== 'production') {
   // 개발 환경: 스택 트레이스 포함
-  app.onError((err, req, res) => {
+  app.use((err, req, res, next) => {
     res.status(err.statusCode || 500).json({
       error: {
         message: err.message,
@@ -438,7 +424,7 @@ if (process.env.NODE_ENV !== 'production') {
   })
 } else {
   // 프로덕션 환경: 안전한 메시지만
-  app.onError((err, req, res) => {
+  app.use((err, req, res, next) => {
     console.error('[ERROR]', {
       message: err.message,
       stack: err.stack,
@@ -455,12 +441,13 @@ if (process.env.NODE_ENV !== 'production') {
 }
 ```
 
-**반환값**: `Application` (체이닝 가능)
-
 **참고**:
-- 에러 핸들러는 한 번만 등록 가능합니다
-- 에러 핸들러를 등록하지 않으면 기본 에러 핸들러가 사용됩니다
-- Feature 에러도 자동으로 글로벌 핸들러로 전달됩니다
+- 에러 미들웨어는 정확히 4개의 매개변수를 가져야 합니다: `(err, req, res, next)`
+- 에러 미들웨어는 모든 라우트와 일반 미들웨어 이후에 등록해야 합니다
+- 여러 개의 에러 미들웨어를 등록할 수 있으며 순서대로 실행됩니다
+- Feature 에러도 에러 미들웨어로 전달됩니다
+
+**참고**: [에러 처리 가이드](../getting-started/error-handling.md)를 참조하세요.
 
 ### app.set(key, value)
 

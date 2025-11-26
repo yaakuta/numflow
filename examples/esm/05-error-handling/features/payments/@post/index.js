@@ -24,7 +24,8 @@ export default numflow.feature({
 
     // 2. General error response
     if (!res.headersSent) {
-      res.status(500).json({
+      const statusCode = error.statusCode || 500
+      res.status(statusCode).json({
         error: 'Payment failed',
         message: error.message
       })

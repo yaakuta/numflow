@@ -56,7 +56,7 @@ app.get('/', (req, res) => {
 })
 
 // 에러 처리
-app.onError((err, req, res) => {
+app.use((err, req, res, next) => {
   res.status(err.statusCode || 500).json({
     error: err.message
   })

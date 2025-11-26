@@ -2,22 +2,22 @@
 
 Error handling and automatic retry mechanism
 
-## 🎯 Core Concept
+## Core Concept
 
 **3-tier error handling**
 
 ```
 1. Error occurs in Step
-   ↓
+   |
 2. Feature.onError() executes
-   ├─ Return RETRY → Retry
-   ├─ Send response → End
-   └─ Do nothing → Go to Global Handler
-   ↓
-3. Global Error Handler (app.onError)
+   +-- Return RETRY -> Retry
+   +-- Send response -> End
+   +-- Do nothing -> Go to Express Error Middleware
+   |
+3. Express Error Middleware: app.use((err, req, res, next) => ...)
 ```
 
-## 💡 Retry Mechanism
+## Retry Mechanism
 
 ```javascript
 onError: async (error, ctx, req, res) => {
@@ -30,7 +30,17 @@ onError: async (error, ctx, req, res) => {
 }
 ```
 
-## 🚀 How to Run
+## Express-style Error Middleware
+
+```javascript
+// Standard Express error handling pattern
+app.use((err, req, res, next) => {
+  console.error('Error:', err.message)
+  res.status(500).json({ error: err.message })
+})
+```
+
+## How to Run
 
 ```bash
 npm start
@@ -42,4 +52,4 @@ curl -X POST http://localhost:3000/payments \
 # Check console for retry logs!
 ```
 
-## ➡️ Next: [realworld/todo-app](../realworld/todo-app/)
+## Next: [realworld/todo-app](../realworld/todo-app/)

@@ -129,10 +129,17 @@ class Application {
   listen(port: number, callback?: () => void): Server
   use(middleware: Middleware | string, ...middlewares: Middleware[]): Application
   get/post/put/delete/patch(path: string, ...handlers: Handler[]): Application
-  onError(handler: ErrorHandler): Application
   set(key: string, value: any): Application
   get(key: string): any
 }
+```
+
+**Error Handling:**
+Numflow uses Express-style error middleware with 4 parameters:
+```typescript
+app.use((err, req, res, next) => {
+  // Error handling logic
+})
 ```
 
 ### Router Class
@@ -502,10 +509,9 @@ Response (error response)
 
 ### Error Handler Priority
 
-1. Route-level error handler
-2. app.onError() global handler
-3. app.use() error middleware
-4. Default error handler
+1. Feature-level error handler (onError in Feature config)
+2. Express-style error middleware (app.use with 4 parameters)
+3. Default error handler
 
 ### Automatic Error Type Detection
 

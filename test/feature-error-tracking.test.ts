@@ -14,7 +14,12 @@ import { AutoExecutor } from '../src/feature/auto-executor.js'
 import { AsyncTaskScheduler } from '../src/feature/async-task-scheduler.js'
 import { StepInfo, AsyncTaskInfo, Context, FeatureError } from '../src/feature/types.js'
 import { IncomingMessage, ServerResponse } from 'http'
-import { ValidationError, NotFoundError } from '../src/errors/index.js'
+// Helper to create error with statusCode
+function createHttpError(message: string, statusCode: number): Error & { statusCode: number } {
+  const error = new Error(message) as Error & { statusCode: number }
+  error.statusCode = statusCode
+  return error
+}
 
 // Mock req/res for testing
 function createMockReqRes(): { req: IncomingMessage; res: ServerResponse } {
@@ -78,7 +83,7 @@ describe('Feature Error Tracking', () => {
             name: '200-check-user.js',
             path: '/features/users/@get/steps/200-check-user.js',
             fn: async (_ctx) => {
-              throw new NotFoundError('User not found')
+              throw createHttpError('User not found', 404)
             },
           },
         ]
@@ -112,7 +117,7 @@ describe('Feature Error Tracking', () => {
             name: '100-validate-input.js',
             path: '/features/orders/@post/steps/100-validate-input.js',
             fn: async (_ctx) => {
-              throw new ValidationError('Invalid email format')
+              throw createHttpError('Invalid email format', 400)
             },
           },
         ]

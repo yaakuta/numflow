@@ -76,9 +76,8 @@ Documents the compatibility between Numflow framework and Express ecosystem.
 | mount event | ❌ | 0% | Not implemented (triggered on sub-app mount) |
 | **Error Handling** | | | |
 | app.use((err, req, res, next)) | ✅ | 100% | Error middleware fully compatible |
-| app.onError(handler) | ✅ | - | Numflow exclusive (global error handler) |
 
-**Overall Compatibility**: 24/28 (86%) - Core features 100% supported
+**Overall Compatibility**: 23/27 (85%) - Core features 100% supported
 
 ### Request (req) API
 
@@ -188,25 +187,25 @@ Documents the compatibility between Numflow framework and Express ecosystem.
 
 | Category | Implemented | Total | Compatibility | Status |
 |----------|-------------|-------|---------------|--------|
-| Application API | 24 | 28 | 86% | ✅ Core features perfect |
+| Application API | 23 | 27 | 85% | ✅ Core features perfect |
 | Request API | 29 | 30 | 97% | ✅✅ **Nearly perfect!** |
 | Response API | 26 | 26 | **100%** | ✅✅✅ **Perfect compatibility!** |
 | Router API | 6 | 6 | **100%** | ✅✅✅ **Perfect compatibility!** |
 | Built-in Middleware | 6 | 6 | **100%** | ✅✅✅ **Perfect compatibility!** |
-| **Total** | **91** | **96** | **95%** | ✅✅✅ **Very high compatibility!** |
+| **Total** | **90** | **95** | **95%** | ✅✅✅ **Very high compatibility!** |
 
 **Key Findings:**
 - ✅✅✅ **Router API 100% Perfect Compatibility!** (Implementation Complete)
 - ✅✅✅ **Response API 100% Perfect Compatibility!** (Implementation Complete)
 - ✅✅✅ **Built-in Middleware 100% Perfect Compatibility!** (Implementation Complete)
 - ✅✅ **Request API 97% Nearly Perfect!** (Implementation Complete, only 1 deprecated API not implemented)
-- ✅ **Application API 86% High Compatibility!** (app.router, mount event not implemented)
+- ✅ **Application API 85% High Compatibility!** (app.router, mount event not implemented)
 - ✅ **Express core APIs are 100% compatible** (routing, middleware, request/response handling, static files)
 - ✅ **Implementation Complete**: app.path(), app.engine(), app.render(), req.range(), numflow.static() added
 - ✅ **Implementation Complete**: req.host, res.attachment(), req.res, app.mountpath added
 - ✅ **99% of actually used Express code works as-is**
 - 🎯 **Migration Difficulty: Very Low** (most works by changing imports only)
-- 📊 **Accurate Compatibility: 95% (91/96 APIs)** - Based on Express 5.x official documentation
+- 📊 **Accurate Compatibility: 95% (90/95 APIs)** - Based on Express 5.x official documentation
 
 ---
 

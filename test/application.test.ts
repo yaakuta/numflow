@@ -4,7 +4,14 @@
 
  */
 
-import numflow, { Application, NotFoundError, ValidationError } from '../src/index'
+import numflow, { Application } from '../src/index'
+
+// Helper to create error with statusCode
+function createHttpError(message: string, statusCode: number): Error & { statusCode: number } {
+  const error = new Error(message) as Error & { statusCode: number }
+  error.statusCode = statusCode
+  return error
+}
 import http from 'http'
 import request from 'supertest'
 
@@ -300,84 +307,41 @@ describe('Application', () => {
     })
   })
 
-  describe('onError() method', () => {
+  describe('Express-style Error Middleware', () => {
     let app: Application
-    let server: http.Server
 
-    afterEach(async () => {
-      if (server && server.listening) {
-        if (typeof server.closeAllConnections === 'function') {
-          server.closeAllConnections()
-        }
-        await new Promise<void>((resolve) => {
-          const timeout = setTimeout(() => resolve(), 2000)
-          server.close(() => {
-            clearTimeout(timeout)
-            resolve()
-          })
-        })
-      }
-      server = null as any
-    })
-
-    it.skip('should be able to register custom error handler', (done) => {
+    it('should register Express-style error middleware with 4 parameters', async () => {
       app = numflow()
-      const port = 3104
 
-      // Register custom error handler
-      app.onError((_err, _req, res) => {
+      app.get('/error', () => {
+        throw new Error('Test error')
+      })
+
+      // Express-style error middleware (4 parameters)
+      app.use((_err: Error, _req: any, res: any, _next: any) => {
         res.statusCode = 999
         res.setHeader('Content-Type', 'text/plain')
         res.end('Custom error handler')
       })
 
-      // Route that throws error
-      app.get('/error', () => {
-        throw new Error('Test error')
-      })
-
-      server = app.listen(port, () => {
-        http.get(`http://localhost:${port}/error`, (res) => {
-          expect(res.statusCode).toBe(999)
-
-          let data = ''
-          res.on('data', (chunk) => {
-            data += chunk
-          })
-
-          res.on('end', () => {
-            expect(data).toBe('Custom error handler')
-            server.close(done)
-          })
-        })
-      })
+      const response = await app.inject({ method: 'GET', url: '/error' })
+      expect(response.statusCode).toBe(999)
+      expect(response.payload).toBe('Custom error handler')
     })
 
-    it.skip('default error handler should use HttpError statusCode', (done) => {
+    it('should use default error handler with statusCode from error', async () => {
       app = numflow()
-      const port = 3105
 
       app.get('/not-found', () => {
-        throw new NotFoundError('User not found')
+        throw createHttpError('User not found', 404)
       })
 
-      server = app.listen(port, () => {
-        http.get(`http://localhost:${port}/not-found`, (res) => {
-          expect(res.statusCode).toBe(404)
+      const response = await app.inject({ method: 'GET', url: '/not-found' })
+      expect(response.statusCode).toBe(404)
 
-          let data = ''
-          res.on('data', (chunk) => {
-            data += chunk
-          })
-
-          res.on('end', () => {
-            const body = JSON.parse(data)
-            expect(body.error.message).toBe('User not found')
-            expect(body.error.statusCode).toBe(404)
-            server.close(done)
-          })
-        })
-      })
+      const body = JSON.parse(response.payload)
+      expect(body.error.message).toBe('User not found')
+      expect(body.error.statusCode).toBe(404)
     })
 
     it('default error handler should handle generic errors as 500', async () => {
@@ -395,86 +359,24 @@ describe('Application', () => {
       expect(body.error.statusCode).toBe(500)
     })
 
-    it.skip('should include validationErrors from ValidationError in response', (done) => {
+    it('should catch errors from async route handlers', async () => {
       app = numflow()
-      const port = 3107
-
-      app.post('/validate', () => {
-        throw new ValidationError('Validation failed', {
-          email: ['Email is required'],
-          password: ['Password is too short'],
-        })
-      })
-
-      server = app.listen(port, () => {
-        const postData = JSON.stringify({ test: 'data' })
-        const options = {
-          hostname: 'localhost',
-          port: port,
-          path: '/validate',
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Content-Length': Buffer.byteLength(postData),
-          },
-        }
-
-        const req = http.request(options, (res) => {
-          expect(res.statusCode).toBe(400)
-
-          let data = ''
-          res.on('data', (chunk) => {
-            data += chunk
-          })
-
-          res.on('end', () => {
-            const body = JSON.parse(data)
-            expect(body.error.message).toBe('Validation failed')
-            expect(body.error.statusCode).toBe(400)
-            expect(body.error.validationErrors).toEqual({
-              email: ['Email is required'],
-              password: ['Password is too short'],
-            })
-            server.close(done)
-          })
-        })
-
-        req.write(postData)
-        req.end()
-      })
-    })
-
-    it.skip('should also catch errors in async route handlers', (done) => {
-      app = numflow()
-      const port = 3108
 
       app.get('/async-error', async () => {
         await new Promise((resolve) => setTimeout(resolve, 10))
-        throw new NotFoundError('Async error')
+        throw createHttpError('Async error', 404)
       })
 
-      server = app.listen(port, () => {
-        http.get(`http://localhost:${port}/async-error`, (res) => {
-          expect(res.statusCode).toBe(404)
+      const response = await app.inject({ method: 'GET', url: '/async-error' })
+      expect(response.statusCode).toBe(404)
 
-          let data = ''
-          res.on('data', (chunk) => {
-            data += chunk
-          })
-
-          res.on('end', () => {
-            const body = JSON.parse(data)
-            expect(body.error.message).toBe('Async error')
-            expect(body.error.statusCode).toBe(404)
-            server.close(done)
-          })
-        })
-      })
+      const body = JSON.parse(response.payload)
+      expect(body.error.message).toBe('Async error')
+      expect(body.error.statusCode).toBe(404)
     })
 
-    it.skip('should also catch errors in middleware', (done) => {
+    it('should catch errors from middleware', async () => {
       app = numflow()
-      const port = 3109
 
       app.use((_req: any, _res: any, _next: any) => {
         throw new Error('Middleware error')
@@ -484,22 +386,16 @@ describe('Application', () => {
         res.end('Should not reach here')
       })
 
-      server = app.listen(port, () => {
-        http.get(`http://localhost:${port}/test`, (res) => {
-          expect(res.statusCode).toBe(500)
+      const response = await app.inject({ method: 'GET', url: '/test' })
+      expect(response.statusCode).toBe(500)
 
-          let data = ''
-          res.on('data', (chunk) => {
-            data += chunk
-          })
+      const body = JSON.parse(response.payload)
+      expect(body.error.message).toBe('Middleware error')
+    })
 
-          res.on('end', () => {
-            const body = JSON.parse(data)
-            expect(body.error.message).toBe('Middleware error')
-            server.close(done)
-          })
-        })
-      })
+    it('should NOT have app.onError method (Express compatibility)', () => {
+      app = numflow()
+      expect((app as any).onError).toBeUndefined()
     })
   })
 

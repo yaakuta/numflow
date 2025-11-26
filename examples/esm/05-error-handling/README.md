@@ -6,10 +6,11 @@ Numflow Error Handling & Retry - ES Modules version
 
 ```
 Error occurs in Step
-        ↓
-Feature.onError() → Can retry or handle
-        ↓
-Global app.onError() → Final fallback
+        |
+Feature.onError() -> Can retry or handle
+        |
+Express Error Middleware -> Final fallback
+app.use((err, req, res, next) => { ... })
 ```
 
 ## Retry Mechanism
@@ -24,6 +25,16 @@ onError: async (error, ctx, req, res) => {
     })
   }
 }
+```
+
+## Express-style Error Middleware
+
+```javascript
+// Standard Express error handling pattern
+app.use((err, req, res, next) => {
+  console.error('Error:', err.message)
+  res.status(500).json({ error: err.message })
+})
 ```
 
 ## Quick Start
@@ -48,5 +59,5 @@ curl -X POST http://localhost:3000/payments \
 
 - Feature `onError` handles feature-specific errors
 - Return `numflow.retry()` to automatically retry
-- Global `app.onError()` catches unhandled errors
+- Express error middleware catches unhandled errors
 - `res.headersSent` check prevents double response

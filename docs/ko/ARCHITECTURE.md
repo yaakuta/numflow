@@ -826,9 +826,9 @@ app.onNotFound((req, res) => {
 })
 ```
 
-#### 2. 커스텀 500 핸들러
+#### 2. 커스텀 에러 핸들러
 ```typescript
-app.onError((err, req, res) => {
+app.use((err, req, res, next) => {
   res.status(500).json({ error: err.message })
 })
 ```
@@ -948,10 +948,9 @@ Response (에러 응답)
 
 ### 에러 핸들러 우선순위
 
-1. 라우트별 에러 핸들러
-2. app.onError() 글로벌 핸들러
-3. app.use() 에러 미들웨어
-4. 기본 에러 핸들러
+1. Feature 레벨 에러 핸들러 (Feature 설정의 onError)
+2. Express 스타일 에러 미들웨어 (app.use에 4개 매개변수)
+3. 기본 에러 핸들러
 
 ### 에러 타입 자동 감지
 
@@ -1139,7 +1138,7 @@ app.get('/users/:id', async (req, res) => {
 })
 
 // 중앙 에러 핸들러
-app.onError((err, req, res) => {
+app.use((err, req, res, next) => {
   res.status(500).json({ error: err.message })
 })
 
